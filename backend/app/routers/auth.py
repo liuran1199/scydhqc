@@ -47,12 +47,19 @@ def cas_login():
 @router.get("/cas/callback")
 def cas_callback(ticket: str, request: Request, db: Session = Depends(get_db),
                  cas: CASClient = Depends(get_cas_client)):
+    fails = int(request.cookies.get("cas_fails") or 0)
     try:
         empid, name = cas.get_user(ticket, _callback_url())
     except Exception:
-        return RedirectResponse("/api/auth/cas/login", status_code=302)  # 静默重试，不甩错误给老师
+        if fails + 1 >= 3:  # 连续失败截断重定向循环（CAS SSO 会自动弹回，无限循环）
+            raise AppError(502, "CAS 登录服务暂时不可用，请稍后重试或联系管理员")
+        resp = RedirectResponse("/api/auth/cas/login", status_code=302)  # 静默重试，不甩错误给老师
+        resp.set_cookie("cas_fails", str(fails + 1), max_age=300,
+                        httponly=True, samesite="lax")
+        return resp
     user = _upsert_user(db, empid, name)
     resp = RedirectResponse("/m/", status_code=302)
+    resp.delete_cookie("cas_fails")  # 成功即清零，不误伤下次抖动
     resp.set_cookie("sc_session", user_codec.dumps({"uid": user.id}),
                     httponly=True, samesite="lax", secure=cookie_secure(request))
     return resp
