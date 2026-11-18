@@ -104,7 +104,7 @@ async function submit() {
       }),
     });
     cart.clear();
-    showSuccessToast("下单成功");
+    showSuccessToast("下单成功，备货完成后凭取货码到服务点自提");
     router.replace(`/m/order/${order.id}`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "下单失败";

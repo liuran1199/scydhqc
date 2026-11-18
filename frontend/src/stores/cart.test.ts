@@ -52,6 +52,18 @@ describe("cart store", () => {
     expect(c.count).toBe(0);
   });
 
+  it("qtyOf：按商品 id 查已加数量，未加过为 0（首页 stepper 用）", async () => {
+    const { useCartStore } = await import("./cart");
+    const P = { id: 1, name: "大米", spec: "5kg", unit: "袋", price_sale: 6620 };
+    const c = useCartStore();
+    expect(c.qtyOf(1)).toBe(0); // 未加过
+    c.add(P as never);
+    c.add(P as never);
+    expect(c.qtyOf(1)).toBe(2);
+    c.remove(1);
+    expect(c.qtyOf(1)).toBe(0); // 删除后回到 0
+  });
+
   it("localStorage 持久化", async () => {
     const { useCartStore } = await import("./cart");
     const P = { id: 1, name: "大米", spec: "5kg", unit: "袋", price_sale: 6620 };

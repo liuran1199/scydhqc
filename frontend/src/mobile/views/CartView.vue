@@ -1,6 +1,6 @@
 <template>
   <div class="pb-32">
-    <van-nav-bar title="购物车" left-arrow @click-left="router.back()" />
+    <van-nav-bar title="购物车" />
     <div class="p-3">
       <van-empty
         v-if="!cart.items.length"

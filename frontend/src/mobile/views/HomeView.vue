@@ -17,66 +17,42 @@
           class="flex-1 !p-1"
           placeholder="搜索食材名称"
           shape="round"
-          @search="load(1)"
-          @clear="load(1)"
+          @search="reload"
+          @clear="reload"
         />
-        <button class="cart-entry" aria-label="购物车" @click="router.push('/m/cart')">
-          <van-badge :content="cart.count || ''" :show-zero="false">
-            <van-icon name="cart-o" size="22" />
-          </van-badge>
-        </button>
       </div>
-      <van-tabs v-model:active="activeCat" shrink line-width="20px" @change="load(1)">
+      <van-tabs v-model:active="activeCat" shrink line-width="20px" @change="reload">
         <van-tab title="全部" :name="0" />
         <van-tab v-for="c in cats" :key="c.id" :title="c.name" :name="c.id" />
       </van-tabs>
     </div>
 
     <div class="p-3 grid grid-cols-1 gap-2.5">
-      <ProductCard v-for="p in products" :key="p.id" :p="p" @add="onAdd" />
-      <van-empty v-if="!loading && !products.length" description="没有找到相关食材" />
-      <div v-if="loading" class="py-10 text-center">
-        <van-loading color="var(--sc-primary)">加载中…</van-loading>
-      </div>
+      <van-list
+        v-model:loading="loading"
+        v-model:error="loadError"
+        :finished="finished"
+        :finished-text="products.length ? '没有更多了' : ''"
+        error-text="加载失败，点击重试"
+        @load="loadMore"
+      >
+        <ProductCard
+          v-for="p in products"
+          :key="p.id"
+          :p="p"
+          :qty="cart.qtyOf(p.id)"
+          @change="onQtyChange"
+        />
+      </van-list>
+      <van-empty
+        v-if="!loading && finished && !products.length"
+        description="没有找到相关食材"
+      />
     </div>
 
-    <div v-if="total > products.length" class="pb-4 text-center text-xs text-[--sc-sub]">
-      已显示 {{ products.length }} / {{ total }} 件，搜索可精确查找
-    </div>
-    <div v-else-if="total" class="pb-4 text-center text-xs text-[--sc-sub]">
+    <div v-if="total" class="pb-4 text-center text-xs text-[--sc-sub]">
       共 {{ total }} 件商品
     </div>
-
-    <van-dialog
-      v-model:show="cartShow"
-      title="购物车"
-      show-cancel-button
-      cancel-button-text="继续逛"
-      confirm-button-text="去下单"
-      :before-close="onCartClose"
-    >
-      <div class="max-h-[50vh] overflow-y-auto px-4 py-2">
-        <div
-          v-for="it in cart.items"
-          :key="it.product_id"
-          class="flex items-center gap-2 py-2.5 border-b border-[--sc-line] last:border-0"
-        >
-          <div class="flex-1 min-w-0">
-            <div class="text-sm truncate">{{ it.name }}</div>
-            <div class="text-xs text-[--sc-sub]">{{ it.spec }} · ￥{{ fmtMoney(it.price_sale) }}/{{ it.unit }}</div>
-          </div>
-          <van-stepper
-            :model-value="it.qty"
-            min="0"
-            @change="(v: number) => (v === 0 ? cart.remove(it.product_id) : cart.setQty(it.product_id, v))"
-          />
-        </div>
-        <div v-if="!cart.items.length" class="py-6 text-center text-sm text-[--sc-sub]">购物车是空的</div>
-      </div>
-      <div class="px-4 pb-3 text-right text-sm">
-        合计 <span class="price">￥{{ fmtMoney(cart.totalCents) }}</span>
-      </div>
-    </van-dialog>
   </div>
 </template>
 
@@ -87,7 +63,6 @@ import { showToast } from "vant";
 import { api } from "../../api/http";
 import { useCartStore } from "../../stores/cart";
 import { useUserStore } from "../../stores/user";
-import { fmtMoney } from "../../shared/format";
 import ProductCard from "../components/ProductCard.vue";
 
 defineOptions({ name: "HomeView" });
@@ -110,36 +85,56 @@ const cats = ref<{ id: number; name: string }[]>([]);
 const products = ref<ProductRow[]>([]);
 const total = ref(0);
 const loading = ref(false);
-const cartShow = ref(false);
+const loadError = ref(false);
+const finished = ref(false);
+const page = ref(0);
 const cart = useCartStore();
 const userStore = useUserStore();
 const user = userStore.user;
 
-function load(page = 1) {
-  const params = new URLSearchParams({ page: String(page) });
+/** 拉下一页并追加（van-list 滚动到底自动触发，首载也由其发起） */
+let seq = 0;
+async function loadMore() {
+  const cur = ++seq;
+  loading.value = true;
+  const params = new URLSearchParams({ page: String(page.value + 1) });
   if (q.value) params.set("q", q.value);
   if (activeCat.value) params.set("category_id", String(activeCat.value));
-  loading.value = true;
-  api<{ items: ProductRow[]; total: number }>(`/api/products?${params}`)
-    .then((d) => {
-      products.value = d.items;
-      total.value = d.total;
-    })
-    .catch((e: Error) => showToast(e.message))
-    .finally(() => (loading.value = false));
-}
-
-function onAdd(p: ProductRow) {
-  cart.add(p);
-  showToast(`已加入购物车（共 ${cart.count} 件）`);
-}
-
-function onCartClose(action: string) {
-  if (action === "confirm") {
-    router.push("/m/cart");
-    return false;
+  try {
+    const d = await api<{ items: ProductRow[]; total: number }>(`/api/products?${params}`);
+    if (cur !== seq) return; // 期间已切分类/重新搜索，丢弃过期响应
+    total.value = d.total;
+    products.value = page.value === 0 ? d.items : [...products.value, ...d.items];
+    page.value += 1;
+    finished.value = products.value.length >= d.total;
+  } catch (e) {
+    if (cur === seq) {
+      loadError.value = true;
+      showToast(e instanceof Error ? e.message : "加载失败");
+    }
+  } finally {
+    if (cur === seq) loading.value = false;
   }
-  return true;
+}
+
+/** 搜索 / 切分类：清空重新拉第一页 */
+function reload() {
+  seq++; // 作废在途请求
+  page.value = 0;
+  products.value = [];
+  total.value = 0;
+  finished.value = false;
+  loadError.value = false;
+  loadMore();
+}
+
+function onQtyChange(p: ProductRow, qty: number) {
+  if (qty <= 0) {
+    cart.remove(p.id);
+    return;
+  }
+  if (cart.qtyOf(p.id) === 0) cart.add(p); // 首次加入需要完整商品信息
+  else cart.setQty(p.id, qty);
 }
 
 onMounted(async () => {
@@ -148,22 +143,12 @@ onMounted(async () => {
   } catch {
     /* 分类失败不阻塞商品列表 */
   }
-  load(1);
+  // 商品首载由 van-list 挂载检查自动触发 loadMore
 });
 </script>
 
 <style scoped>
 .home {
   padding-bottom: 16px;
-}
-.price {
-  color: var(--sc-price);
-  font-weight: 700;
-}
-.cart-entry {
-  padding: 6px 4px 6px 8px;
-  color: var(--sc-ink);
-  background: none;
-  border: 0;
 }
 </style>

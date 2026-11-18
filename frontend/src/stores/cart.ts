@@ -25,6 +25,8 @@ export const useCartStore = defineStore("cart", {
   getters: {
     count: (s) => s.items.reduce((a, i) => a + i.qty, 0),
     totalCents: (s) => s.items.reduce((a, i) => a + i.price_sale * i.qty, 0),
+    /** 某商品已加数量（首页商品卡 stepper 显示用），未加过为 0 */
+    qtyOf: (s) => (pid: number) => s.items.find((i) => i.product_id === pid)?.qty ?? 0,
   },
   actions: {
     save() {

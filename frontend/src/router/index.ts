@@ -16,7 +16,6 @@ const router = createRouter({
         { path: "confirm", component: () => import("../mobile/views/ConfirmView.vue") },
         { path: "order/:id", component: () => import("../mobile/views/OrderDetailView.vue") },
         { path: "product/:id", component: () => import("../mobile/views/ProductView.vue") },
-        { path: "notice", component: () => import("../mobile/views/NoticeView.vue") },
       ],
     },
     { path: "/admin/login", component: () => import("../admin/views/LoginView.vue") },
@@ -33,6 +32,8 @@ const router = createRouter({
         { path: "settings", component: () => import("../admin/views/SettingsView.vue") },
       ],
     },
+    // 兜底：失效地址（如已下线的 /m/notice）统一回首页
+    { path: "/:pathMatch(.*)*", redirect: "/m" },
   ],
 });
 
