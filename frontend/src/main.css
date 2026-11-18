@@ -14,6 +14,9 @@
   --sc-line: #e8eae4;
   --sc-price: #d9582b;
 
+  /* 图表用色：主绿提饱和一步（品牌绿直接做柱色偏灰，已过验证器） */
+  --sc-chart: #2e8b57;
+
   /* Vant（H5）主题对齐 */
   --van-primary-color: var(--sc-primary);
   --van-text-color: var(--sc-ink);
