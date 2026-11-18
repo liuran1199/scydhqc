@@ -140,14 +140,27 @@ def update_category(cid: int, body: CategoryIn, db: Session = Depends(get_db)):
     return {"id": c.id, "name": c.name, "sort": c.sort, "enabled": c.enabled}
 
 
+def _is_image(data: bytes) -> bool:
+    """文件头魔数校验：扩展名可伪造，内容骗不了人。"""
+    if data[:3] == b"\xff\xd8\xff":
+        return True  # JPEG
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return True  # PNG
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return True  # WebP
+    return False
+
+
 @router.post("/upload")
 async def upload(file: UploadFile):
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in ALLOWED_EXT:
         raise AppError(400, "仅支持 jpg/png/webp 图片")
-    data = await file.read()
+    data = await file.read(MAX_UPLOAD + 1)  # 只读到上限+1，超大文件不整读进内存
     if len(data) > MAX_UPLOAD:
         raise AppError(400, "图片不能超过 5MB")
+    if not _is_image(data):
+        raise AppError(400, "文件内容不是有效的图片")
     os.makedirs(settings.upload_dir, exist_ok=True)
     name = f"{uuid.uuid4().hex}{ext}"
     with open(os.path.join(settings.upload_dir, name), "wb") as f:

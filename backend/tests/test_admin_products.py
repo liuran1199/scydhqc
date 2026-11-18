@@ -69,3 +69,22 @@ def test_update_product_writes_admin_log(client, db):
     client.put(f"/api/admin/products/{pid}", json={"price_sale": 6000})
     log = db.query(AdminLog).filter_by(action="product_update").first()
     assert log is not None and "price_sale" in log.detail and log.username == "adm"
+
+
+def test_upload_rejects_fake_image_content(client, db, tmp_path, monkeypatch):
+    """扩展名合法但内容不是图片 → 拒绝（I-6：仅扩展名校验可被绕过）。"""
+    from app.config import settings
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+    admin_login(client, db)
+    r = client.post("/api/admin/upload",
+                    files={"file": ("fake.png", io.BytesIO(b"not-a-png" * 64), "image/png")})
+    assert r.status_code == 400
+
+
+def test_upload_accepts_jpeg_magic(client, db, tmp_path, monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+    admin_login(client, db)
+    r = client.post("/api/admin/upload",
+                    files={"file": ("x.jpg", io.BytesIO(b"\xff\xd8\xff" + b"0" * 128), "image/jpeg")})
+    assert r.status_code == 200 and r.json()["url"].endswith(".jpg")
