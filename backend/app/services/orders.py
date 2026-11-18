@@ -70,3 +70,17 @@ def cancel_order(db: Session, order: Order, reason: str, by_admin: bool = False)
                 p.stock += it.qty  # 有限库存回补
     db.commit()
     return db.get(Order, order.id)
+
+
+def mark_ready(db: Session, order: Order) -> Order:
+    res = db.execute(
+        update(Order)
+        .where(Order.id == order.id, Order.status == "PENDING")
+        .values(status="READY", ready_at=datetime.now())
+    )
+    if res.rowcount == 0:
+        db.rollback()
+        current = db.get(Order, order.id).status
+        raise AppError(409, f"当前状态为「{STATUS_LABELS[current]}」，不能备货完成")
+    db.commit()
+    return db.get(Order, order.id)

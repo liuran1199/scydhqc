@@ -38,6 +38,9 @@ def create_app() -> FastAPI:
     from app.routers.admin_excel import router as admin_excel_router
     app.include_router(admin_excel_router)
 
+    from app.routers.admin_orders import router as admin_orders_router
+    app.include_router(admin_orders_router)
+
     os.makedirs(settings.upload_dir, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
