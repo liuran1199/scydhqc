@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_admin
-from app.models import Admin, Order
+from app.models import Admin, AdminLog, Order
 
 router = APIRouter(prefix="/api/admin/stats", tags=["stats"],
                    dependencies=[Depends(get_current_admin)])
@@ -71,7 +71,11 @@ def range_stats(date_from: str, date_to: str, db: Session = Depends(get_db)):
 
 
 @router.get("/export")
-def export(date_from: str, date_to: str, db: Session = Depends(get_db)):
+def export(date_from: str, date_to: str, db: Session = Depends(get_db),
+           admin: Admin = Depends(get_current_admin)):
+    db.add(AdminLog(admin_id=admin.id, username=admin.username, action="export",
+                    target="reconciliation", detail=f"导出核销流水 {date_from}~{date_to}"))
+    db.commit()
     _, _, done = _range_done(db, date_from, date_to)
     wb = Workbook()
     ws = wb.active

@@ -53,3 +53,12 @@ def test_picking_list_xlsx(client, db):
     setup_(client, db)
     r = client.get("/api/admin/orders/picking-list.xlsx")
     assert r.status_code == 200 and len(r.content) > 1000
+
+
+def test_picking_list_writes_admin_log(client, db):
+    """备货清单导出必须落操作日志（I-3）。"""
+    from app.models import AdminLog
+    setup_(client, db)
+    assert client.get("/api/admin/orders/picking-list.xlsx").status_code == 200
+    log = db.query(AdminLog).filter_by(action="export").first()
+    assert log is not None and log.target == "picking-list"

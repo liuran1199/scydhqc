@@ -69,3 +69,12 @@ def test_export_contains_all(client, db):
     db.commit()
     r = client.get("/api/admin/products/export")
     assert r.status_code == 200 and len(r.content) > 500
+
+
+def test_export_writes_admin_log(client, db):
+    """商品全量导出必须落操作日志（I-3）。"""
+    from app.models import AdminLog
+    admin_login(client, db)
+    assert client.get("/api/admin/products/export").status_code == 200
+    log = db.query(AdminLog).filter_by(action="export").first()
+    assert log is not None and log.target == "products"

@@ -81,7 +81,10 @@ def admin_cancel(oid: int, body: CancelIn, db: Session = Depends(get_db),
 
 
 @router.get("/picking-list.xlsx")
-def picking_list(db: Session = Depends(get_db)):
+def picking_list(db: Session = Depends(get_db), admin: Admin = Depends(get_current_admin)):
+    db.add(AdminLog(admin_id=admin.id, username=admin.username, action="export",
+                    target="picking-list", detail="导出备货清单"))
+    db.commit()
     orders = (db.query(Order)
               .filter(Order.status.in_(["PENDING", "READY"]))
               .order_by(Order.id).all())

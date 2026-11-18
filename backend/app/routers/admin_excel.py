@@ -27,5 +27,8 @@ async def import_excel(file: UploadFile, db: Session = Depends(get_db),
 
 
 @router.get("/export")
-def export(db: Session = Depends(get_db)):
+def export(db: Session = Depends(get_db), admin: Admin = Depends(get_current_admin)):
+    db.add(AdminLog(admin_id=admin.id, username=admin.username, action="export",
+                    target="products", detail="全量导出商品"))
+    db.commit()
     return workbook_response(export_products_xlsx(db), "商品导出.xlsx")

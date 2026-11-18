@@ -9,7 +9,7 @@ from app.config import settings
 from app.database import get_db
 from app.deps import get_current_admin
 from app.exceptions import AppError
-from app.models import Category, Product
+from app.models import Admin, AdminLog, Category, Product
 from app.serializers import product_to_dict
 
 router = APIRouter(prefix="/api/admin", tags=["admin-products"],
@@ -87,15 +87,23 @@ def create_product(body: ProductIn, db: Session = Depends(get_db)):
 
 
 @router.put("/products/{pid}")
-def update_product(pid: int, body: ProductUpdateIn, db: Session = Depends(get_db)):
+def update_product(pid: int, body: ProductUpdateIn, db: Session = Depends(get_db),
+                   admin: Admin = Depends(get_current_admin)):
     p = db.get(Product, pid)
     if not p:
         raise AppError(404, "商品不存在")
     data = body.model_dump(exclude_unset=True)  # 部分更新：任意字段
     _validate(data)
+    changes = [f"{k} {getattr(p, k)}→{v}"
+               for k, v in data.items() if getattr(p, k) != v]
     for k, v in data.items():
         setattr(p, k, v)
     db.commit()
+    if changes:  # 改价/改库存等留痕
+        db.add(AdminLog(admin_id=admin.id, username=admin.username,
+                        action="product_update", target=p.name,
+                        detail="；".join(changes)))
+        db.commit()
     return product_to_dict(p)
 
 

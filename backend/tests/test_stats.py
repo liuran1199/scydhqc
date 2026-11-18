@@ -57,3 +57,14 @@ def test_export_xlsx(client, db):
     today = datetime.now().strftime("%Y-%m-%d")
     r = client.get(f"/api/admin/stats/export?date_from={today}&date_to={today}")
     assert r.status_code == 200 and len(r.content) > 1000
+
+
+def test_export_writes_admin_log(client, db):
+    """核销流水导出必须落操作日志（I-3）。"""
+    from app.models import AdminLog
+    make_orders(db, n_done=1)
+    admin_login(client, db)
+    today = datetime.now().strftime("%Y-%m-%d")
+    client.get(f"/api/admin/stats/export?date_from={today}&date_to={today}")
+    log = db.query(AdminLog).filter_by(action="export").first()
+    assert log is not None and log.target == "reconciliation"

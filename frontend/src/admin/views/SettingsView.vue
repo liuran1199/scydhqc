@@ -157,6 +157,9 @@ const ACTION_LABEL: Record<string, string> = {
   cancel: "代取消",
   admin_create: "新增账号",
   admin_update: "修改账号",
+  product_update: "修改商品",
+  import: "导入商品",
+  export: "导出",
   login: "登录",
 };
 

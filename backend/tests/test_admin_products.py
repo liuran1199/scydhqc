@@ -57,3 +57,15 @@ def test_category_crud(client, db):
     cid = client.post("/api/admin/categories", json={"name": "蛋品"}).json()["id"]
     r = client.put(f"/api/admin/categories/{cid}", json={"name": "糖蜜蛋品", "enabled": True})
     assert r.json()["name"] == "糖蜜蛋品"
+
+
+def test_update_product_writes_admin_log(client, db):
+    """改价/改库存必须落操作日志（I-3，spec：改价需留痕）。"""
+    from app.models import AdminLog
+    admin_login(client, db)
+    pid = client.post("/api/admin/products", json={
+        "name": "日志米", "spec": "5kg", "unit": "袋",
+        "price_original": 6750, "price_sale": 6620, "stock": 5}).json()["id"]
+    client.put(f"/api/admin/products/{pid}", json={"price_sale": 6000})
+    log = db.query(AdminLog).filter_by(action="product_update").first()
+    assert log is not None and "price_sale" in log.detail and log.username == "adm"
