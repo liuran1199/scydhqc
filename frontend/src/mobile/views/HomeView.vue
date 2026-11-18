@@ -11,13 +11,21 @@
     </div>
 
     <div class="sticky top-0 z-10 bg-[--sc-bg]/95 backdrop-blur">
-      <van-search
-        v-model="q"
-        placeholder="搜索食材名称"
-        shape="round"
-        @search="load(1)"
-        @clear="load(1)"
-      />
+      <div class="flex items-center px-3 pt-2">
+        <van-search
+          v-model="q"
+          class="flex-1 !p-1"
+          placeholder="搜索食材名称"
+          shape="round"
+          @search="load(1)"
+          @clear="load(1)"
+        />
+        <button class="cart-entry" aria-label="购物车" @click="router.push('/m/cart')">
+          <van-badge :content="cart.count || ''" :show-zero="false">
+            <van-icon name="cart-o" size="22" />
+          </van-badge>
+        </button>
+      </div>
       <van-tabs v-model:active="activeCat" shrink line-width="20px" @change="load(1)">
         <van-tab title="全部" :name="0" />
         <van-tab v-for="c in cats" :key="c.id" :title="c.name" :name="c.id" />
@@ -74,6 +82,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
 import { showToast } from "vant";
 import { api } from "../../api/http";
 import { useCartStore } from "../../stores/cart";
@@ -82,6 +91,8 @@ import { fmtMoney } from "../../shared/format";
 import ProductCard from "../components/ProductCard.vue";
 
 defineOptions({ name: "HomeView" });
+
+const router = useRouter();
 
 interface ProductRow {
   id: number;
@@ -125,7 +136,7 @@ function onAdd(p: ProductRow) {
 
 function onCartClose(action: string) {
   if (action === "confirm") {
-    location.href = "/m/orders?submit=1"; // 下单页在订单 tab，Task 17 接管
+    router.push("/m/cart");
     return false;
   }
   return true;
@@ -148,5 +159,11 @@ onMounted(async () => {
 .price {
   color: var(--sc-price);
   font-weight: 700;
+}
+.cart-entry {
+  padding: 6px 4px 6px 8px;
+  color: var(--sc-ink);
+  background: none;
+  border: 0;
 }
 </style>

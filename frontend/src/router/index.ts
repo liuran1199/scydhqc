@@ -12,6 +12,8 @@ const router = createRouter({
       children: [
         { path: "", component: () => import("../mobile/views/HomeView.vue") },
         { path: "orders", component: () => import("../mobile/views/OrdersView.vue") },
+        { path: "cart", component: () => import("../mobile/views/CartView.vue") },
+        { path: "confirm", component: () => import("../mobile/views/ConfirmView.vue") },
         { path: "order/:id", component: () => import("../mobile/views/OrderDetailView.vue") },
         { path: "product/:id", component: () => import("../mobile/views/ProductView.vue") },
         { path: "notice", component: () => import("../mobile/views/NoticeView.vue") },
