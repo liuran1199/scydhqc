@@ -50,6 +50,15 @@ def create_order(db: Session, user: User, items: list[dict], remark: str = "") -
     return order
 
 
+def restore_product_stock(db: Session, product_id: int, qty: int) -> None:
+    """取消回补：SQL 原子加法（并发取消不虚增）；无限库存（NULL）跳过。"""
+    db.execute(
+        update(Product)
+        .where(Product.id == product_id, Product.stock.isnot(None))
+        .values(stock=Product.stock + qty)
+    )
+
+
 def cancel_order(db: Session, order: Order, reason: str, by_admin: bool = False) -> Order:
     # 条件更新：仅 PENDING/READY 可取消，并发安全
     res = db.execute(
@@ -65,9 +74,7 @@ def cancel_order(db: Session, order: Order, reason: str, by_admin: bool = False)
     db.flush()
     for it in db.query(OrderItem).filter_by(order_id=order.id).all():
         if it.product_id:
-            p = db.get(Product, it.product_id)
-            if p is not None and p.stock is not None:
-                p.stock += it.qty  # 有限库存回补
+            restore_product_stock(db, it.product_id, it.qty)
     db.commit()
     return db.get(Order, order.id)
 

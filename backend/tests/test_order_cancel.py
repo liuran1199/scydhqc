@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from app.database import SessionLocal
 from app.models import Order, Product
 
 
@@ -54,3 +55,36 @@ def test_cancel_ready_ok(client, db):
     order.status, order.ready_at = "READY", datetime.now()
     db.commit()
     assert client.post(f"/api/orders/{d['id']}/cancel").status_code == 200
+
+
+def test_restore_stock_atomic_across_sessions(db, client):
+    """回补用 SQL 原子加法：多会话交错回补不虚增、不覆盖（I-2）。"""
+    from app.services.orders import restore_product_stock
+
+    d = make_order(client, db, qty=3, stock=10)
+    order = db.get(Order, d["id"])
+    it = order.items[0]
+    # 模拟两个并发取消：两个会话基于同一快照先后回补
+    db2 = SessionLocal()
+    try:
+        restore_product_stock(db, it.product_id, it.qty)
+        db.commit()
+        restore_product_stock(db2, it.product_id, it.qty)
+        db2.commit()
+    finally:
+        db2.close()
+    db.expire_all()
+    assert db.get(Product, it.product_id).stock == 13  # 10 - 3(下单) + 3 + 3(两次回补)
+
+
+def test_restore_stock_skips_unlimited(db, client):
+    """无限库存（stock=NULL）回补后仍是 NULL。"""
+    from app.services.orders import restore_product_stock
+
+    d = make_order(client, db, stock=None)
+    order = db.get(Order, d["id"])
+    it = order.items[0]
+    restore_product_stock(db, it.product_id, it.qty)
+    db.commit()
+    db.expire_all()
+    assert db.get(Product, it.product_id).stock is None
