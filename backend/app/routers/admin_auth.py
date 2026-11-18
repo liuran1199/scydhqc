@@ -7,7 +7,7 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import admin_codec, get_current_admin
+from app.deps import admin_codec, cookie_secure, get_current_admin
 from app.exceptions import AppError
 from app.models import Admin, AdminLog
 from app.utils.security import verify_password
@@ -42,7 +42,7 @@ class LoginIn(BaseModel):
 
 
 @router.post("/login")
-def login(body: LoginIn, db: Session = Depends(get_db)):
+def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     admin = db.query(Admin).filter_by(username=body.username).first()
     now = datetime.now()
     if not admin or not verify_password(body.password, admin.password_hash):
@@ -66,7 +66,7 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
     resp = JSONResponse({"id": admin.id, "username": admin.username,
                          "role": admin.role, "name": admin.name})
     resp.set_cookie("sc_admin", admin_codec.dumps({"aid": admin.id}),
-                    httponly=True, samesite="lax")
+                    httponly=True, samesite="lax", secure=cookie_secure(request))
     return resp
 
 

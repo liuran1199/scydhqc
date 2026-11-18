@@ -11,6 +11,12 @@ user_codec = SessionCodec(settings.session_secret, settings.session_max_age)
 admin_codec = SessionCodec(settings.session_secret, settings.session_max_age)
 
 
+def cookie_secure(request: Request) -> bool:
+    """直连 https 或经反代（x-forwarded-proto=https）时，会话 cookie 加 Secure。"""
+    return (request.url.scheme == "https"
+            or request.headers.get("x-forwarded-proto") == "https")
+
+
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     token = request.cookies.get("sc_session")
     data = user_codec.loads(token) if token else None

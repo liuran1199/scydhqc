@@ -35,3 +35,11 @@ def test_update_profile_name(client):
 def get_cas_client_dep():
     from app.routers.auth import get_cas_client
     return get_cas_client
+
+
+def test_user_cookie_secure_over_https(client, db):
+    """https 下用户会话 cookie 必须带 Secure（I-4）。"""
+    r = client.get("/api/auth/dev-login?empid=T001",
+                   headers={"x-forwarded-proto": "https"})
+    assert r.status_code == 200
+    assert "secure" in r.headers["set-cookie"].lower()

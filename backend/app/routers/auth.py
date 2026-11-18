@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.auth.cas import CASClient, HttpCASClient
 from app.config import settings
 from app.database import get_db
-from app.deps import get_current_user, user_codec
+from app.deps import cookie_secure, get_current_user, user_codec
 from app.exceptions import AppError
 from app.models import User
 
@@ -54,18 +54,19 @@ def cas_callback(ticket: str, request: Request, db: Session = Depends(get_db),
     user = _upsert_user(db, empid, name)
     resp = RedirectResponse("/m/", status_code=302)
     resp.set_cookie("sc_session", user_codec.dumps({"uid": user.id}),
-                    httponly=True, samesite="lax")
+                    httponly=True, samesite="lax", secure=cookie_secure(request))
     return resp
 
 
 @router.get("/dev-login")
-def dev_login(empid: str, name: str | None = None, db: Session = Depends(get_db)):
+def dev_login(request: Request, empid: str, name: str | None = None,
+              db: Session = Depends(get_db)):
     if not settings.dev_auth_enabled:
         raise AppError(403, "开发登录未启用")
     user = _upsert_user(db, empid, name)
     resp = JSONResponse({"empid": user.empid, "name": user.name})
     resp.set_cookie("sc_session", user_codec.dumps({"uid": user.id}),
-                    httponly=True, samesite="lax")
+                    httponly=True, samesite="lax", secure=cookie_secure(request))
     return resp
 
 

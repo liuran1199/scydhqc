@@ -82,3 +82,15 @@ def test_register_fail_locks_at_threshold(db):
     db.refresh(a)
     assert a.locked_until is not None and a.locked_until > datetime.now()
     assert a.failed_attempts == 0  # 锁定即清零，期满重新累计
+
+
+def test_login_cookie_secure_over_https(client, db):
+    """经反代 https（x-forwarded-proto）时管理端 cookie 必须带 Secure（I-4）。"""
+    make_admin(db)
+    r = client.post("/api/admin/auth/login", json={"username": "admin", "password": "pass123"},
+                    headers={"x-forwarded-proto": "https"})
+    assert r.status_code == 200
+    assert "secure" in r.headers["set-cookie"].lower()
+    # 明文 http（本地开发）不加传输安全标志
+    r2 = login(client)
+    assert "secure" not in r2.headers["set-cookie"].lower()
