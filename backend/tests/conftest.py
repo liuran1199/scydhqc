@@ -1,6 +1,7 @@
 import os
 
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"  # 必须在 import app 之前
+os.environ.setdefault("DEV_AUTH_ENABLED", "1")  # 测试依赖 dev-login 旁路
 
 import pytest
 from fastapi.testclient import TestClient

@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     session_secret: str = "dev-secret-change-me"
     session_max_age: int = 7 * 24 * 3600
     cas_base_url: str = ""  # 例 https://cas.xxx.edu.cn/cas，联调时填
-    dev_auth_enabled: bool = True  # 本地开发登录旁路，上线置 false
+    dev_auth_enabled: bool = False  # 开发登录旁路：本地 .env / 测试显式置 1，默认关闭
     initial_admin_username: str = "admin"
     initial_admin_password: str = "admin123"
     upload_dir: str = "uploads"
