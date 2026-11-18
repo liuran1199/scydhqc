@@ -79,6 +79,8 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     def on_startup():
+        from app.config import validate_security_settings
+        validate_security_settings(settings)
         import app.models  # noqa: F401 确保模型注册
         Base.metadata.create_all(bind=engine)
         with SessionLocal() as s:

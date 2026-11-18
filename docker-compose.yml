@@ -5,12 +5,12 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       DATABASE_URL: mysql+pymysql://sc:scpass@mysql:3306/shicai?charset=utf8mb4
-      APP_BASE_URL: ${APP_BASE_URL}
-      SESSION_SECRET: ${SESSION_SECRET}
-      CAS_BASE_URL: ${CAS_BASE_URL}
+      APP_BASE_URL: ${APP_BASE_URL:?请在 .env 配置 APP_BASE_URL}
+      SESSION_SECRET: ${SESSION_SECRET:?请在 .env 配置随机长串 SESSION_SECRET}
+      CAS_BASE_URL: ${CAS_BASE_URL:?请在 .env 配置学校 CAS 地址}
       DEV_AUTH_ENABLED: "0"
       INITIAL_ADMIN_USERNAME: ${INITIAL_ADMIN_USERNAME:-admin}
-      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:?请在 .env 配置 INITIAL_ADMIN_PASSWORD}
     volumes: ["uploads:/srv/uploads"]
     depends_on: [mysql]
     restart: unless-stopped
@@ -20,7 +20,7 @@ services:
       MYSQL_DATABASE: shicai
       MYSQL_USER: sc
       MYSQL_PASSWORD: scpass
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 配置 MYSQL_ROOT_PASSWORD}
     volumes: ["mysql-data:/var/lib/mysql"]
     restart: unless-stopped
   nginx:
