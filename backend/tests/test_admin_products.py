@@ -1,0 +1,59 @@
+import io
+import os
+import zlib
+
+from app.models import Admin
+from app.utils.security import hash_password
+
+
+def png_bytes(size_kb=1):
+    return b"\x89PNG\r\n\x1a\n" + zlib.compress(b"0" * size_kb * 1024)
+
+
+def admin_login(client, db, role="super"):
+    db.add(Admin(username="adm", password_hash=hash_password("p"), role=role, name="管"))
+    db.commit()
+    client.post("/api/admin/auth/login", json={"username": "adm", "password": "p"})
+
+
+def test_create_update_product(client, db):
+    admin_login(client, db)
+    r = client.post("/api/admin/products", json={
+        "name": "测试米", "spec": "5kg", "unit": "袋",
+        "price_original": 6750, "price_sale": 6620, "stock": 5})
+    assert r.status_code == 200
+    pid = r.json()["id"]
+    r = client.put(f"/api/admin/products/{pid}", json={"price_sale": 6000, "status": "off"})
+    assert r.json()["price_sale"] == 6000 and r.json()["status"] == "off"
+
+
+def test_requires_admin(client, db):
+    assert client.get("/api/admin/products").status_code == 401
+
+
+def test_upload_rejects_txt_and_oversize(client, db, tmp_path):
+    admin_login(client, db)
+    r = client.post("/api/admin/upload",
+                    files={"file": ("a.txt", io.BytesIO(b"hello"), "text/plain")})
+    assert r.status_code == 400
+    big = b"\x89PNG\r\n\x1a\n" + os.urandom(6 * 1024 * 1024)  # >5MB，不可压缩
+    r = client.post("/api/admin/upload",
+                    files={"file": ("b.png", io.BytesIO(big), "image/png")})
+    assert r.status_code == 400
+
+
+def test_upload_png_ok(client, db, tmp_path, monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))  # 不污染真实 uploads
+    admin_login(client, db)
+    r = client.post("/api/admin/upload",
+                    files={"file": ("c.png", io.BytesIO(png_bytes()), "image/png")})
+    assert r.status_code == 200
+    assert r.json()["url"].startswith("/uploads/") and r.json()["url"].endswith(".png")
+
+
+def test_category_crud(client, db):
+    admin_login(client, db)
+    cid = client.post("/api/admin/categories", json={"name": "蛋品"}).json()["id"]
+    r = client.put(f"/api/admin/categories/{cid}", json={"name": "糖蜜蛋品", "enabled": True})
+    assert r.json()["name"] == "糖蜜蛋品"

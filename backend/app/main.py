@@ -1,7 +1,11 @@
+import os
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
+from app.config import settings
 from app.database import Base, SessionLocal, engine
 from app.exceptions import AppError
 
@@ -27,6 +31,12 @@ def create_app() -> FastAPI:
 
     from app.routers.orders import router as orders_router
     app.include_router(orders_router)
+
+    from app.routers.admin_products import router as admin_products_router
+    app.include_router(admin_products_router)
+
+    os.makedirs(settings.upload_dir, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
     from app.routers.admin_auth import router as admin_auth_router, ensure_initial_admin
     app.include_router(admin_auth_router)
