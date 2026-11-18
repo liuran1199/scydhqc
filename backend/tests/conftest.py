@@ -8,6 +8,15 @@ from fastapi.testclient import TestClient
 from app.config import settings
 from app.database import Base, SessionLocal, engine
 from app.main import app
+from app.ratelimit import order_limiter
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """模块级内存限流器跨测试隔离（否则同进程内命中数互相污染）。"""
+    order_limiter.hits.clear()
+    yield
+    order_limiter.hits.clear()
 
 
 @pytest.fixture()

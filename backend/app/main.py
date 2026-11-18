@@ -25,6 +25,9 @@ def create_app() -> FastAPI:
     from app.routers.products import router as products_router
     app.include_router(products_router)
 
+    from app.routers.orders import router as orders_router
+    app.include_router(orders_router)
+
     from app.routers.admin_auth import router as admin_auth_router, ensure_initial_admin
     app.include_router(admin_auth_router)
 
