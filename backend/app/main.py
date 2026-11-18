@@ -44,6 +44,9 @@ def create_app() -> FastAPI:
     from app.routers.admin_verify import router as admin_verify_router
     app.include_router(admin_verify_router)
 
+    from app.routers.admin_stats import router as admin_stats_router
+    app.include_router(admin_stats_router)
+
     os.makedirs(settings.upload_dir, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
