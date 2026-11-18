@@ -20,7 +20,19 @@ const router = createRouter({
       ],
     },
     { path: "/admin/login", component: () => import("../admin/views/LoginView.vue") },
-    { path: "/admin", redirect: "/admin/dashboard" },
+    {
+      path: "/admin",
+      component: () => import("../admin/AdminLayout.vue"),
+      children: [
+        { path: "", redirect: "/admin/dashboard" },
+        { path: "dashboard", component: () => import("../admin/views/DashboardView.vue") },
+        { path: "products", component: () => import("../admin/views/ProductsView.vue") },
+        { path: "orders", component: () => import("../admin/views/OrdersView.vue") },
+        { path: "verify", component: () => import("../admin/views/VerifyView.vue") },
+        { path: "stats", component: () => import("../admin/views/StatsView.vue") },
+        { path: "settings", component: () => import("../admin/views/SettingsView.vue") },
+      ],
+    },
   ],
 });
 
