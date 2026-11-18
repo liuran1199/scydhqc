@@ -2,9 +2,22 @@
   <div v-if="p" class="pb-24">
     <van-nav-bar title="商品详情" left-arrow @click-left="router.back()" />
     <div class="p-4">
-      <div v-if="p.image" class="rounded-xl overflow-hidden bg-[--sc-primary-soft]">
-        <img :src="p.image" class="w-full" style="aspect-ratio: 1; object-fit: cover" alt="" />
-      </div>
+      <van-swipe
+        v-if="imgs.length"
+        class="rounded-xl overflow-hidden bg-[--sc-primary-soft]"
+      >
+        <van-swipe-item v-for="(u, i) in imgs" :key="i">
+          <img
+            :src="u"
+            class="w-full block"
+            style="aspect-ratio: 1; object-fit: cover"
+            alt=""
+          />
+        </van-swipe-item>
+        <template #indicator="{ active }">
+          <div v-if="imgs.length > 1" class="swipe-counter">{{ active + 1 }}/{{ imgs.length }}</div>
+        </template>
+      </van-swipe>
       <div v-else class="fallback-tile rounded-xl">{{ p.name.slice(0, 1) }}</div>
 
       <div class="mt-4 flex items-end gap-2">
@@ -42,15 +55,23 @@
     </div>
 
     <van-action-bar>
-      <van-action-bar-button type="primary" text="加入购物车" @click="add" />
+      <van-action-bar-icon
+        icon="cart-o"
+        text="购物车"
+        :badge="cart.count || ''"
+        :color="cart.count ? 'var(--sc-primary)' : undefined"
+        @click="router.push('/m/cart')"
+      />
+      <van-action-bar-button type="primary" plain text="加入购物车" @click="add" />
+      <van-action-bar-button type="primary" text="立即购买" @click="buy" />
     </van-action-bar>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { showToast } from "vant";
+import { showSuccessToast, showToast } from "vant";
 import { api } from "../../api/http";
 import { useCartStore } from "../../stores/cart";
 import { fmtMoney } from "../../shared/format";
@@ -68,12 +89,26 @@ const p = ref<{
   price_sale: number;
   price_original: number;
   image?: string | null;
+  images?: string[];
 } | null>(null);
 
+/** 图集：images 优先，旧数据只有封面时兜底单图 */
+const imgs = computed(() =>
+  p.value?.images?.length ? p.value.images : p.value?.image ? [p.value.image] : [],
+);
+
+/** 加入购物车：留在本页，角标与提示即反馈（主流电商详情页行为） */
 function add() {
-  if (p.value) cart.add(p.value);
-  showToast("已加入购物车");
-  router.back();
+  if (!p.value) return;
+  cart.add(p.value);
+  showSuccessToast("已加入购物车");
+}
+
+/** 立即购买：本单加购后直接进入确认页 */
+function buy() {
+  if (!p.value) return;
+  cart.add(p.value);
+  router.push("/m/confirm");
 }
 
 onMounted(async () => {
@@ -96,6 +131,17 @@ onMounted(async () => {
   color: var(--sc-primary);
   font-size: 64px;
   font-weight: 600;
+}
+.swipe-counter {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 45%);
+  color: #fff;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 .card {
   background: var(--sc-card);

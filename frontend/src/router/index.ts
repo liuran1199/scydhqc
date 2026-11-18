@@ -12,10 +12,11 @@ const router = createRouter({
       children: [
         { path: "", component: () => import("../mobile/views/HomeView.vue") },
         { path: "orders", component: () => import("../mobile/views/OrdersView.vue") },
-        { path: "cart", component: () => import("../mobile/views/CartView.vue") },
-        { path: "confirm", component: () => import("../mobile/views/ConfirmView.vue") },
+        // 自带底部操作条（提交栏/操作栏）的页面隐藏全局导航，避免两条底栏重叠遮挡
+        { path: "cart", component: () => import("../mobile/views/CartView.vue"), meta: { hideTabbar: true } },
+        { path: "confirm", component: () => import("../mobile/views/ConfirmView.vue"), meta: { hideTabbar: true } },
         { path: "order/:id", component: () => import("../mobile/views/OrderDetailView.vue") },
-        { path: "product/:id", component: () => import("../mobile/views/ProductView.vue") },
+        { path: "product/:id", component: () => import("../mobile/views/ProductView.vue"), meta: { hideTabbar: true } },
       ],
     },
     { path: "/admin/login", component: () => import("../admin/views/LoginView.vue") },

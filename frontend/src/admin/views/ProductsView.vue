@@ -151,15 +151,30 @@
           <span class="form-hint">小的排前面</span>
         </el-form-item>
         <el-form-item label="图片">
-          <div class="flex items-center gap-3">
-            <el-image v-if="form.image" :src="form.image" fit="cover" class="img-preview" />
-            <div v-else class="img-preview no-img">
-              {{ (form.name || "食").slice(0, 1) }}
+          <div class="w-full">
+            <div class="flex flex-wrap items-start gap-2">
+              <div v-for="(img, i) in form.images" :key="img" class="img-cell">
+                <el-image :src="img" fit="cover" class="img-preview" :preview-src-list="form.images" :initial-index="i" />
+                <span v-if="i === 0" class="cover-tag">封面</span>
+                <div class="img-ops">
+                  <el-button v-if="i > 0" link size="small" @click="setCover(i)">
+                    设为封面
+                  </el-button>
+                  <el-button link size="small" type="danger" @click="form.images.splice(i, 1)">
+                    删除
+                  </el-button>
+                </div>
+              </div>
+              <el-upload
+                v-if="form.images.length < 9"
+                :show-file-list="false"
+                accept=".jpg,.jpeg,.png,.webp"
+                :http-request="doUpload"
+              >
+                <div class="img-preview upload-cell">＋上传</div>
+              </el-upload>
             </div>
-            <el-upload :show-file-list="false" accept=".jpg,.jpeg,.png,.webp" :http-request="doUpload">
-              <el-button>{{ form.image ? "更换图片" : "上传图片" }}</el-button>
-            </el-upload>
-            <span class="form-hint">jpg/png/webp，≤5MB</span>
+            <span class="form-hint">第一张为封面（详情页可左右滑动查看全部），最多 9 张，jpg/png/webp ≤5MB</span>
           </div>
         </el-form-item>
       </el-form>
@@ -242,6 +257,7 @@ interface Product {
   price_original: number;
   price_sale: number;
   image: string | null;
+  images: string[];
   category_id: number | null;
   status: string;
   stock: number | null;
@@ -267,7 +283,7 @@ interface ProductForm {
   origin: string;
   category_id: number | null;
   sort: number;
-  image: string | null;
+  images: string[];
   status: string;
   _po: number;
   _ps: number;
@@ -283,7 +299,7 @@ const emptyForm = (): ProductForm => ({
   origin: "",
   category_id: null,
   sort: 0,
-  image: null,
+  images: [],
   status: "on",
   _po: 0,
   _ps: 0,
@@ -329,12 +345,20 @@ function openEdit(row?: Product) {
     ? {
         ...emptyForm(),
         ...row,
+        images: row.images?.length ? [...row.images] : row.image ? [row.image] : [],
         _po: row.price_original / 100,
         _ps: row.price_sale / 100,
         _stock: row.stock,
       }
     : emptyForm();
   editVisible.value = true;
+}
+
+/** 把第 i 张挪到第一位成为封面 */
+function setCover(i: number) {
+  const imgs = [...form.value.images];
+  const [pick] = imgs.splice(i, 1);
+  form.value.images = [pick, ...imgs];
 }
 
 async function save() {
@@ -359,7 +383,7 @@ async function save() {
     stock: f._stock ?? null,
     sort: f.sort || 0,
     status: f.status || "on",
-    image: f.image ?? null,
+    images: f.images, // 后端自动以第一张为封面
   };
   saving.value = true;
   try {
@@ -395,7 +419,7 @@ async function doUpload(opt: { file: File }) {
   fd.append("file", opt.file);
   try {
     const d = await api<{ url: string }>("/api/admin/upload", { method: "POST", body: fd });
-    form.value.image = d.url;
+    form.value.images.push(d.url);
     ElMessage.success("图片已上传");
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : "上传失败");
@@ -525,6 +549,48 @@ onMounted(() => {
   height: 64px;
   border-radius: 8px;
   flex-shrink: 0;
+}
+.img-cell {
+  position: relative;
+}
+.cover-tag {
+  position: absolute;
+  left: 0;
+  bottom: 18px;
+  padding: 0 6px;
+  border-radius: 0 8px 0 0;
+  background: var(--sc-primary);
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+}
+.img-ops {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 1px;
+}
+.img-ops .el-button + .el-button {
+  margin-left: 0;
+}
+.img-ops .el-button {
+  padding: 2px 4px;
+  height: auto;
+  font-size: 12px;
+}
+.upload-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--sc-line);
+  color: var(--sc-sub);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.upload-cell:hover {
+  border-color: var(--sc-primary);
+  color: var(--sc-primary);
 }
 .ok {
   color: var(--sc-primary);

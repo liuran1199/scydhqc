@@ -88,3 +88,62 @@ def test_upload_accepts_jpeg_magic(client, db, tmp_path, monkeypatch):
     r = client.post("/api/admin/upload",
                     files={"file": ("x.jpg", io.BytesIO(b"\xff\xd8\xff" + b"0" * 128), "image/jpeg")})
     assert r.status_code == 200 and r.json()["url"].endswith(".jpg")
+
+
+# ── 商品多图：images 数组，第一张即封面 ──────────────────────────
+
+def test_product_images_roundtrip(client, db):
+    """创建带多图 → images 返回数组且 image 自动取第一张为封面"""
+    admin_login(client, db)
+    r = client.post("/api/admin/products", json={
+        "name": "多图米", "spec": "5kg", "unit": "袋",
+        "price_original": 6750, "price_sale": 6620,
+        "images": ["/uploads/a.jpg", "/uploads/b.jpg", "/uploads/c.jpg"]})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["images"] == ["/uploads/a.jpg", "/uploads/b.jpg", "/uploads/c.jpg"]
+    assert d["image"] == "/uploads/a.jpg"  # 封面 = 第一张
+
+
+def test_product_images_update_syncs_cover(client, db):
+    """更新 images 时封面同步；清空 images 封面也清空"""
+    admin_login(client, db)
+    pid = client.post("/api/admin/products", json={
+        "name": "多图米", "price_original": 6750, "price_sale": 6620,
+        "images": ["/uploads/a.jpg"]}).json()["id"]
+    r = client.put(f"/api/admin/products/{pid}",
+                   json={"images": ["/uploads/b.jpg", "/uploads/a.jpg"]})
+    assert r.json()["image"] == "/uploads/b.jpg"
+    assert r.json()["images"][0] == "/uploads/b.jpg"
+    r = client.put(f"/api/admin/products/{pid}", json={"images": []})
+    assert r.json()["image"] is None and r.json()["images"] == []
+
+
+def test_product_images_validation(client, db):
+    """非 /uploads/ 前缀的地址与超过 9 张均拒绝"""
+    admin_login(client, db)
+    r = client.post("/api/admin/products", json={
+        "name": "坏图米", "price_original": 6750, "price_sale": 6620,
+        "images": ["https://evil.example.com/x.jpg"]})
+    assert r.status_code == 400
+    r = client.post("/api/admin/products", json={
+        "name": "太多图米", "price_original": 6750, "price_sale": 6620,
+        "images": [f"/uploads/{i}.jpg" for i in range(10)]})
+    assert r.status_code == 400
+
+
+def test_public_detail_returns_images(client, db):
+    """公开详情接口返回 images；仅存旧 image 字段的商品兜底为 [image]"""
+    from app.models import Product
+    admin_login(client, db)
+    client.get("/api/auth/dev-login", params={"empid": "U901", "name": "图老师"})
+    pid = client.post("/api/admin/products", json={
+        "name": "公开米", "price_original": 6750, "price_sale": 6620,
+        "images": ["/uploads/a.jpg", "/uploads/b.jpg"]}).json()["id"]
+    d = client.get(f"/api/products/{pid}").json()
+    assert d["images"] == ["/uploads/a.jpg", "/uploads/b.jpg"]
+    # 旧数据兼容：只有 image 没有 images
+    db.get(Product, pid).images = None
+    db.commit()
+    d = client.get(f"/api/products/{pid}").json()
+    assert d["images"] == ["/uploads/a.jpg"]

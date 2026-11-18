@@ -48,7 +48,8 @@ class Product(Base):
     origin: Mapped[str] = mapped_column(String(64), default="")  # 产地
     price_original: Mapped[int] = mapped_column(Integer)          # 原价，分
     price_sale: Mapped[int] = mapped_column(Integer)              # 售价，分
-    image: Mapped[str | None] = mapped_column(String(255))
+    image: Mapped[str | None] = mapped_column(String(255))  # 封面 = images[0]
+    images: Mapped[str | None] = mapped_column(Text)  # 详情图集 JSON 数组
     status: Mapped[str] = mapped_column(String(8), default="on")  # on/off
     stock: Mapped[int | None] = mapped_column(Integer)            # NULL=无限
     sort: Mapped[int] = mapped_column(Integer, default=0)

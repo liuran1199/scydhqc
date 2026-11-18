@@ -1,3 +1,4 @@
+import json
 import os
 import uuid
 
@@ -17,6 +18,7 @@ router = APIRouter(prefix="/api/admin", tags=["admin-products"],
 
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 MAX_UPLOAD = 5 * 1024 * 1024
+MAX_IMAGES = 9
 
 
 class ProductIn(BaseModel):
@@ -32,6 +34,7 @@ class ProductIn(BaseModel):
     sort: int = 0
     status: str = "on"
     image: str | None = None
+    images: list[str] | None = None  # 详情图集，第一张即封面
 
 
 class ProductUpdateIn(BaseModel):
@@ -47,6 +50,7 @@ class ProductUpdateIn(BaseModel):
     sort: int | None = None
     status: str | None = None
     image: str | None = None
+    images: list[str] | None = None
 
 
 def _validate(data: dict) -> None:
@@ -58,6 +62,12 @@ def _validate(data: dict) -> None:
         raise AppError(400, "status 只能是 on/off")
     if "stock" in data and data["stock"] is not None and data["stock"] < 0:
         raise AppError(400, "库存不能为负")
+    if data.get("images") is not None:
+        if len(data["images"]) > MAX_IMAGES:
+            raise AppError(400, f"图片最多 {MAX_IMAGES} 张")
+        for u in data["images"]:
+            if not isinstance(u, str) or not u.startswith("/uploads/"):
+                raise AppError(400, "图片地址无效（只能是本站上传的图片）")
 
 
 @router.get("/products")
@@ -79,11 +89,33 @@ def admin_products(q: str | None = None, category_id: int | None = None,
 
 @router.post("/products")
 def create_product(body: ProductIn, db: Session = Depends(get_db)):
-    _validate(body.model_dump())
-    p = Product(**body.model_dump())
+    data = body.model_dump()
+    _validate(data)
+    _sync_images(data)
+    p = Product(**data)
     db.add(p)
     db.commit()
     return product_to_dict(p)
+
+
+def _sync_images(data: dict) -> None:
+    """images 列表 → JSON 串落库；封面 image 同步为第一张（空列表 → None）"""
+    imgs = data.get("images")
+    if imgs is None:
+        return
+    data["images"] = json.dumps(imgs, ensure_ascii=False)
+    data["image"] = imgs[0] if imgs else None
+
+
+def _image_count(raw: str | None) -> int:
+    if raw:
+        try:
+            arr = json.loads(raw)
+            if isinstance(arr, list) and arr:
+                return len(arr)
+        except (ValueError, TypeError):
+            pass
+    return 0
 
 
 @router.put("/products/{pid}")
@@ -94,8 +126,15 @@ def update_product(pid: int, body: ProductUpdateIn, db: Session = Depends(get_db
         raise AppError(404, "商品不存在")
     data = body.model_dump(exclude_unset=True)  # 部分更新：任意字段
     _validate(data)
+    _sync_images(data)
     changes = [f"{k} {getattr(p, k)}→{v}"
-               for k, v in data.items() if getattr(p, k) != v]
+               for k, v in data.items()
+               if getattr(p, k) != v and k != "images"]
+    if "images" in data:  # 图集变化记张数，避免整串 URL 刷屏
+        old_n = _image_count(p.images) or (1 if p.image else 0)
+        new_n = _image_count(data["images"])
+        if old_n != new_n or json.loads(p.images or "[]") != json.loads(data["images"]):
+            changes.append(f"图片 {old_n}→{new_n} 张")
     for k, v in data.items():
         setattr(p, k, v)
     db.commit()

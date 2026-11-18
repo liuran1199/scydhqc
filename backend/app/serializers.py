@@ -1,4 +1,18 @@
+import json
+
 from app.models import Order, Product
+
+
+def product_images(p: Product) -> list[str]:
+    """详情图集：images JSON 数组优先；旧数据只有 image 时兜底为 [image]"""
+    if p.images:
+        try:
+            arr = json.loads(p.images)
+            if isinstance(arr, list) and arr:
+                return [str(u) for u in arr]
+        except (ValueError, TypeError):
+            pass
+    return [p.image] if p.image else []
 
 
 def product_to_dict(p: Product) -> dict:
@@ -6,7 +20,8 @@ def product_to_dict(p: Product) -> dict:
         "id": p.id, "name": p.name, "brand": p.brand, "spec": p.spec,
         "unit": p.unit, "origin": p.origin,
         "price_original": p.price_original, "price_sale": p.price_sale,
-        "image": p.image, "category_id": p.category_id, "status": p.status,
+        "image": p.image, "images": product_images(p),
+        "category_id": p.category_id, "status": p.status,
         "stock": p.stock, "sort": p.sort,
     }
 

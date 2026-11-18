@@ -83,8 +83,24 @@ def create_app() -> FastAPI:
         validate_security_settings(settings)
         import app.models  # noqa: F401 确保模型注册
         Base.metadata.create_all(bind=engine)
+        _ensure_product_images_column()
         with SessionLocal() as s:
             ensure_initial_admin(s)
+
+
+    def _ensure_product_images_column():
+        """已有库升级：products 补 images 列；旧单图数据回填为图集（幂等）"""
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            try:
+                conn.execute(text("ALTER TABLE products ADD COLUMN images TEXT"))
+            except Exception:  # 列已存在（MySQL/SQLite 均会报错而非 if not exists）
+                pass
+            conn.execute(text(
+                "UPDATE products SET images = CONCAT('[\"', image, '\"]') "
+                "WHERE image IS NOT NULL AND image != '' "
+                "AND (images IS NULL OR images = '')"
+            ))
 
     return app
 

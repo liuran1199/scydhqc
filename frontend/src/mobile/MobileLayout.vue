@@ -5,7 +5,7 @@
         <component :is="Component" />
       </keep-alive>
     </router-view>
-    <van-tabbar :model-value="activeTab" safe-area-inset-bottom @change="onTabChange">
+    <van-tabbar v-if="!route.meta.hideTabbar" :model-value="activeTab" safe-area-inset-bottom @change="onTabChange">
       <van-tabbar-item icon="shop-o">商品</van-tabbar-item>
       <van-tabbar-item>
         购物车
