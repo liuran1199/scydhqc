@@ -68,5 +68,19 @@ export const useCartStore = defineStore("cart", {
       this.items = [];
       this.save();
     },
+    /** 管理端改价后，用最新售价覆盖购物车旧价；返回发生变化的条数 */
+    syncPrices(products: { id: number; price_sale: number }[]): number {
+      let changed = 0;
+      this.items = this.items.map((i) => {
+        const latest = products.find((p) => p.id === i.product_id);
+        if (latest && latest.price_sale !== i.price_sale) {
+          changed += 1;
+          return { ...i, price_sale: latest.price_sale };
+        }
+        return i;
+      });
+      if (changed > 0) this.save();
+      return changed;
+    },
   },
 });

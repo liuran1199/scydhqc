@@ -58,7 +58,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
-import { showFailToast, showSuccessToast } from "vant";
+import { showConfirmDialog, showFailToast, showSuccessToast } from "vant";
 import { api } from "../../api/http";
 import { useCartStore } from "../../stores/cart";
 import { fmtMoney } from "../../shared/format";
@@ -68,13 +68,38 @@ const router = useRouter();
 const remark = ref("");
 const submitting = ref(false);
 
+/** 服务端 409（加购后改价）：拉最新售价覆盖购物车，请老师核对后重新提交 */
+async function resyncPricesAndConfirm() {
+  try {
+    const latest = await Promise.all(
+      cart.items.map((i) =>
+        api<{ id: number; price_sale: number }>(`/api/products/${i.product_id}`)
+      )
+    );
+    cart.syncPrices(latest);
+    showConfirmDialog({
+      title: "价格已调整",
+      message: "部分商品售价已更新，商品清单已按最新价格刷新，请核对后重新提交订单。",
+      confirmButtonText: "知道了",
+      showCancelButton: false,
+    });
+  } catch {
+    showFailToast("获取最新价格失败，请返回重新进入本页");
+  }
+}
+
 async function submit() {
   submitting.value = true;
   try {
     const order = await api<{ id: number }>("/api/orders", {
       method: "POST",
       body: JSON.stringify({
-        items: cart.items.map((i) => ({ product_id: i.product_id, qty: i.qty })),
+        // price_sale 为加购时的价格快照：管理端改价后服务端 409，绝不静默按新价成交
+        items: cart.items.map((i) => ({
+          product_id: i.product_id,
+          qty: i.qty,
+          price_sale: i.price_sale,
+        })),
         remark: remark.value,
       }),
     });
@@ -83,6 +108,10 @@ async function submit() {
     router.replace(`/m/order/${order.id}`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "下单失败";
+    if (msg.includes("价格已调整")) {
+      await resyncPricesAndConfirm(); // 本页清单立即显示新价，重新提交即成交
+      return;
+    }
     showFailToast(msg); // 含"已下架请重新确认/库存不足"等服务端校验文案
     if (msg.includes("下架") || msg.includes("库存")) {
       router.replace("/m/cart");

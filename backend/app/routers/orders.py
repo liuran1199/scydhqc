@@ -16,6 +16,7 @@ router = APIRouter(prefix="/api/orders", tags=["orders"])
 class ItemIn(BaseModel):
     product_id: int
     qty: int
+    price_sale: int | None = None  # 加购时的价格快照，用于改价检测
 
 
 class OrderIn(BaseModel):

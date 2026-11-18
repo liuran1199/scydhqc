@@ -21,6 +21,9 @@ def create_order(db: Session, user: User, items: list[dict], remark: str = "") -
         p = db.get(Product, it.get("product_id"))
         if not p or p.status != "on":
             raise AppError(400, f"商品已下架或不存在（id={it.get('product_id')}），请返回重新确认")
+        expected = it.get("price_sale")
+        if expected is not None and expected != p.price_sale:
+            raise AppError(409, f"「{p.name}」价格已调整，请重新确认最新价格")
         checked.append((p, qty))
     # 原子扣减有限库存（NULL 无限跳过）
     for p, qty in checked:

@@ -61,3 +61,31 @@ describe("cart store", () => {
     expect(c2.count).toBe(1);
   });
 });
+
+describe("cart syncPrices（改价后重确认，I-7）", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setActivePinia(createPinia());
+  });
+
+  it("用最新售价覆盖购物车旧价并持久化", async () => {
+    const { useCartStore } = await import("./cart");
+    const P = { id: 1, name: "大米", spec: "5kg", unit: "袋", price_sale: 6620 };
+    const c = useCartStore();
+    c.add(P as never);
+    const changed = c.syncPrices([{ id: 1, price_sale: 7000 }]);
+    expect(changed).toBe(1);
+    expect(c.items[0].price_sale).toBe(7000);
+    expect(c.totalCents).toBe(7000);
+    expect(localStorage.getItem("sc_cart")).toContain("7000");
+  });
+
+  it("价格未变或商品不在返回中时不动、不误报", async () => {
+    const { useCartStore } = await import("./cart");
+    const P = { id: 1, name: "大米", spec: "5kg", unit: "袋", price_sale: 6620 };
+    const c = useCartStore();
+    c.add(P as never);
+    expect(c.syncPrices([{ id: 1, price_sale: 6620 }, { id: 9, price_sale: 100 }])).toBe(0);
+    expect(c.items[0].price_sale).toBe(6620);
+  });
+});

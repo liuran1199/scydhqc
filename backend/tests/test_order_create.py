@@ -82,3 +82,16 @@ def test_pickup_code_unique(client, db):
     client.post("/api/orders", json={"items": [{"product_id": p1.id, "qty": 1}]})
     codes = [o.pickup_code for o in db.query(Order).all()]
     assert len(set(codes)) == 2
+
+
+def test_order_rejects_stale_cart_price(client, db):
+    """购物车旧价 ≠ 当前售价 → 409 提示重新确认（I-7：改价后静默按新价成交不可接受）。"""
+    p1, _ = seed(db)
+    client.get("/api/auth/dev-login?empid=T001")
+    r = client.post("/api/orders", json={
+        "items": [{"product_id": p1.id, "qty": 1, "price_sale": 5000}]})  # 加购时的旧价
+    assert r.status_code == 409 and "重新确认" in r.json()["detail"]
+    # 带当前价（用户已在确认页看到新价）正常成交
+    r2 = client.post("/api/orders", json={
+        "items": [{"product_id": p1.id, "qty": 1, "price_sale": 6620}]})
+    assert r2.status_code == 200 and r2.json()["total"] == 6620
