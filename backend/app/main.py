@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
 from app.database import Base, SessionLocal, engine
@@ -57,6 +58,22 @@ def create_app() -> FastAPI:
 
     from app.routers.admin_auth import router as admin_auth_router, ensure_initial_admin
     app.include_router(admin_auth_router)
+
+    # SPA 静态托管：前端构建产物存在时挂到根路径（API 路由已注册在前，优先匹配）
+    class SPAStaticFiles(StaticFiles):
+        """未命中的非 API/上传路径回退 index.html，保证 /m、/admin 深链可直接访问"""
+
+        async def get_response(self, path: str, scope):
+            try:
+                return await super().get_response(path, scope)
+            except StarletteHTTPException as e:  # StaticFiles 抛的是 starlette 基类
+                if e.status_code == 404 and not path.startswith(("api", "uploads")):
+                    return await super().get_response("index.html", scope)
+                raise
+
+    dist = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
+    if os.path.isdir(dist):
+        app.mount("/", SPAStaticFiles(directory=dist, html=True), name="spa")
 
     @app.on_event("startup")
     def on_startup():

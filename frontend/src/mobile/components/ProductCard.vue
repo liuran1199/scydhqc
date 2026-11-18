@@ -29,6 +29,8 @@
           size="22"
           color="var(--sc-primary)"
           class="add-btn"
+          role="button"
+          aria-label="加入购物车"
           @click.stop="$emit('add', p)"
         />
       </div>
