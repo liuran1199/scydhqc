@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.exceptions import AppError
 from app.models import Order, OrderItem, Product, User
+from app.serializers import STATUS_LABEL as STATUS_LABELS
 from app.services.pickup_code import generate_pickup_code
 
 
@@ -47,3 +48,25 @@ def create_order(db: Session, user: User, items: list[dict], remark: str = "") -
     db.commit()
     db.refresh(order)
     return order
+
+
+def cancel_order(db: Session, order: Order, reason: str, by_admin: bool = False) -> Order:
+    # 条件更新：仅 PENDING/READY 可取消，并发安全
+    res = db.execute(
+        update(Order)
+        .where(Order.id == order.id, Order.status.in_(["PENDING", "READY"]))
+        .values(status="CANCELLED", cancelled_at=datetime.now(),
+                cancel_reason=reason[:255])
+    )
+    if res.rowcount == 0:
+        db.rollback()
+        current = db.get(Order, order.id).status
+        raise AppError(409, f"当前状态为「{STATUS_LABELS[current]}」，不能取消")
+    db.flush()
+    for it in db.query(OrderItem).filter_by(order_id=order.id).all():
+        if it.product_id:
+            p = db.get(Product, it.product_id)
+            if p is not None and p.stock is not None:
+                p.stock += it.qty  # 有限库存回补
+    db.commit()
+    return db.get(Order, order.id)
