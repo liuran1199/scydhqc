@@ -71,7 +71,9 @@ def create_app() -> FastAPI:
                     return await super().get_response("index.html", scope)
                 raise
 
-    dist = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
+    dist = os.environ.get("STATIC_DIR") or os.path.join(
+        os.path.dirname(__file__), "..", "..", "frontend", "dist"
+    )
     if os.path.isdir(dist):
         app.mount("/", SPAStaticFiles(directory=dist, html=True), name="spa")
 
