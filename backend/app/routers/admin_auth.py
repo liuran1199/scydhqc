@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -17,6 +18,24 @@ LOCK_MINUTES = 10
 MAX_FAILS = 5
 
 
+def _register_fail(db: Session, aid: int) -> None:
+    """失败计数用 SQL 原子自增（并发请求不丢计数）；达阈值锁定并清零。"""
+    db.execute(
+        update(Admin).where(Admin.id == aid)
+        .values(failed_attempts=Admin.failed_attempts + 1)
+    )
+    db.flush()
+    db.expire(db.get(Admin, aid))  # 丢弃 identity map 旧值，下面的读取走数据库
+    a = db.get(Admin, aid)
+    if a.failed_attempts >= MAX_FAILS and not (
+            a.locked_until and a.locked_until > datetime.now()):
+        db.execute(
+            update(Admin).where(Admin.id == aid)
+            .values(locked_until=datetime.now() + timedelta(minutes=LOCK_MINUTES),
+                    failed_attempts=0)
+        )
+
+
 class LoginIn(BaseModel):
     username: str
     password: str
@@ -28,16 +47,12 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
     now = datetime.now()
     if not admin or not verify_password(body.password, admin.password_hash):
         if admin:
+            if not (admin.locked_until and admin.locked_until > now):
+                _register_fail(db, admin.id)  # 已锁定不累计，锁过期自零重启
+            db.commit()
+            db.refresh(admin)
             if admin.locked_until and admin.locked_until > now:
-                pass  # 已锁定，不再累计
-            else:
-                admin.failed_attempts += 1
-                if admin.failed_attempts >= MAX_FAILS:
-                    admin.locked_until = now + timedelta(minutes=LOCK_MINUTES)
-                    admin.failed_attempts = 0
-        db.commit()
-        if admin and admin.locked_until and admin.locked_until > now:
-            raise AppError(403, f"失败次数过多，锁定至 {admin.locked_until:%H:%M}，请稍后再试")
+                raise AppError(403, f"失败次数过多，锁定至 {admin.locked_until:%H:%M}，请稍后再试")
         raise AppError(401, "用户名或密码错误")
     if not admin.is_active:
         raise AppError(403, "账号已停用")

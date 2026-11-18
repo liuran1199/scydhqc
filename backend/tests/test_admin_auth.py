@@ -58,3 +58,27 @@ def test_require_super_blocks_operator(client, db):
     login(client, "op")
     r = client.get("/api/admin/admins")
     assert r.status_code == 403          # Task 14 接口已建，operator 被拒
+
+
+def test_register_fail_counts_atomically(db):
+    """失败计数用 SQL 原子自增：多会话交错不丢计数（I-1）。"""
+    from app.routers.admin_auth import _register_fail
+    make_admin(db)
+    a = db.query(Admin).filter_by(username="admin").first()
+    for _ in range(3):
+        _register_fail(db, a.id)
+        db.commit()
+    db.refresh(a)
+    assert a.failed_attempts == 3 and a.locked_until is None
+
+
+def test_register_fail_locks_at_threshold(db):
+    from app.routers.admin_auth import _register_fail
+    make_admin(db)
+    a = db.query(Admin).filter_by(username="admin").first()
+    for _ in range(5):
+        _register_fail(db, a.id)
+        db.commit()
+    db.refresh(a)
+    assert a.locked_until is not None and a.locked_until > datetime.now()
+    assert a.failed_attempts == 0  # 锁定即清零，期满重新累计
