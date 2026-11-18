@@ -1,1 +1,53 @@
 @import "tailwindcss";
+
+/* —— 设计 token：全站视觉系统 ——
+   主色取"食材/新鲜"的松绿，底色暖纸灰，价格用柿橙强调；
+   中文优先字体栈，避免默认英文观感。 */
+:root {
+  --sc-primary: #2f7a52;
+  --sc-primary-deep: #235f3f;
+  --sc-primary-soft: #eaf3ee;
+  --sc-ink: #1f2933;
+  --sc-sub: #75808a;
+  --sc-bg: #f5f6f3;
+  --sc-card: #ffffff;
+  --sc-line: #e8eae4;
+  --sc-price: #d9582b;
+
+  /* Vant（H5）主题对齐 */
+  --van-primary-color: var(--sc-primary);
+  --van-text-color: var(--sc-ink);
+  --van-text-color-2: var(--sc-sub);
+  --van-background: var(--sc-bg);
+  --van-background-2: var(--sc-card);
+  --van-border-color: var(--sc-line);
+  --van-tabbar-item-active-color: var(--sc-primary);
+  --van-nav-bar-title-font-size: 17px;
+  --van-button-primary-background: var(--sc-primary);
+  --van-button-primary-border-color: var(--sc-primary);
+  --van-tag-primary-color: var(--sc-primary);
+  --van-cell-background: var(--sc-card);
+
+  /* Element Plus（管理端）主题对齐 */
+  --el-color-primary: var(--sc-primary);
+  --el-color-primary-dark-2: var(--sc-primary-deep);
+  --el-color-primary-light-3: #5c9a78;
+  --el-color-primary-light-5: #8ab9a1;
+  --el-color-primary-light-7: #b9d7c8;
+  --el-color-primary-light-8: #d3e5da;
+  --el-color-primary-light-9: #eaf3ee;
+  --el-border-radius-base: 6px;
+}
+
+html,
+body {
+  background: var(--sc-bg);
+  color: var(--sc-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "HarmonyOS Sans SC",
+    "Microsoft YaHei", "Noto Sans CJK SC", "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
