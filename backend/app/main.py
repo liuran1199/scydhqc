@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.database import Base
+from app.database import Base, SessionLocal, engine
 from app.exceptions import AppError
 
 
@@ -21,6 +21,17 @@ def create_app() -> FastAPI:
 
     from app.routers.auth import router as auth_router
     app.include_router(auth_router)
+
+    from app.routers.admin_auth import router as admin_auth_router, ensure_initial_admin
+    app.include_router(admin_auth_router)
+
+    @app.on_event("startup")
+    def on_startup():
+        import app.models  # noqa: F401 确保模型注册
+        Base.metadata.create_all(bind=engine)
+        with SessionLocal() as s:
+            ensure_initial_admin(s)
+
     return app
 
 
