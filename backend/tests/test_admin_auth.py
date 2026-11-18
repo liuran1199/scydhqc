@@ -56,5 +56,5 @@ def test_inactive_admin_rejected(client, db):
 def test_require_super_blocks_operator(client, db):
     make_admin(db, username="op", role="operator")
     login(client, "op")
-    r = client.get("/api/admin/admins")  # Task 14 的超管接口，这里先验证 403 语义
-    assert r.status_code in (403, 404)   # 404=接口未建，403=已建且拒绝；本任务后固定 403
+    r = client.get("/api/admin/admins")
+    assert r.status_code == 403          # Task 14 接口已建，operator 被拒
