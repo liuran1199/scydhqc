@@ -13,6 +13,7 @@ const router = createRouter({
         { path: "", component: () => import("../mobile/views/HomeView.vue") },
         { path: "orders", component: () => import("../mobile/views/OrdersView.vue") },
         { path: "order/:id", component: () => import("../mobile/views/OrderDetailView.vue") },
+        { path: "product/:id", component: () => import("../mobile/views/ProductView.vue") },
         { path: "notice", component: () => import("../mobile/views/NoticeView.vue") },
       ],
     },
