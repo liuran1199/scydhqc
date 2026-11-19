@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 WorkingDirectory=%h/scydhqc/backend
-ExecStart=%h/scydhqc/backend/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 13000
+ExecStart=%h/scydhqc/backend/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 13000 --proxy-headers --forwarded-allow-ips=172.28.200.80,172.28.200.101
 Restart=always
 RestartSec=3
 
