@@ -4,7 +4,7 @@
     <div class="p-4">
       <van-swipe
         v-if="imgs.length"
-        class="rounded-xl overflow-hidden bg-[--sc-primary-soft]"
+        class="rounded-xl overflow-hidden bg-[var(--sc-primary-soft)]"
       >
         <van-swipe-item v-for="(u, i) in imgs" :key="i">
           <img
@@ -21,12 +21,12 @@
       <div v-else class="fallback-tile rounded-xl">{{ p.name.slice(0, 1) }}</div>
 
       <div class="mt-4 flex items-end gap-2">
-        <span class="text-[26px] leading-none font-bold text-[--sc-price]">
+        <span class="text-[26px] leading-none font-bold text-[var(--sc-price)]">
           ￥{{ fmtMoney(p.price_sale) }}
         </span>
         <span
           v-if="p.price_original > p.price_sale"
-          class="text-sm text-[--sc-sub] line-through"
+          class="text-sm text-[var(--sc-sub)] line-through"
         >
           ￥{{ fmtMoney(p.price_original) }}
         </span>
@@ -49,7 +49,7 @@
         </div>
       </div>
 
-      <p class="mt-4 text-xs leading-5 text-[--sc-sub]">
+      <p class="mt-4 text-xs leading-5 text-[var(--sc-sub)]">
         下单后由服务点备货，备货完成后可随时凭取货码到店自提，现场支付。
       </p>
     </div>

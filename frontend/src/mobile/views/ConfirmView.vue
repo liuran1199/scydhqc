@@ -12,32 +12,38 @@
         >
           <span class="min-w-0">
             {{ i.name }}
-            <span class="text-[--sc-sub]">（{{ i.spec }}）</span>
+            <span class="text-[var(--sc-sub)]">（{{ i.spec }}）</span>
             × {{ i.qty }}{{ i.unit }}
           </span>
           <span class="shrink-0">￥{{ fmtMoney(i.price_sale * i.qty) }}</span>
         </div>
-        <div class="flex justify-between pt-3 mt-1 border-t border-[--sc-line] font-bold">
+        <div class="flex justify-between pt-3 mt-1 border-t border-[var(--sc-line)] font-bold">
           <span>合计</span>
-          <span class="text-[--sc-price]">￥{{ fmtMoney(cart.selectedCents) }}</span>
+          <span class="text-[var(--sc-price)]">￥{{ fmtMoney(cart.selectedCents) }}</span>
         </div>
-        <p class="mt-2 text-xs text-[--sc-sub]">取货时现场支付，线上不收款。</p>
+        <p class="mt-2 text-xs text-[var(--sc-sub)]">取货时现场支付，线上不收款。</p>
       </div>
 
       <div class="card mt-3">
         <van-field
           v-model="remark"
           label="备注"
-          placeholder="选填，如：周五下午取"
+          placeholder="选填，其他需求请备注"
           maxlength="100"
           show-word-limit
         />
       </div>
 
-      <p class="mt-3 px-2 text-xs leading-5 text-[--sc-sub]">
-        每天 16:00 截单：本单预计 <b class="text-[--sc-text]">{{ fmtPickupDate(pickupDateFor(new Date())) }}</b> 取货。
+      <p class="mt-3 px-2 text-xs leading-5 text-[var(--sc-sub)]">
+        每天 {{ cutoffHour }} 点截单：本单预计
+        <b class="text-[var(--sc-ink)]">{{ pickupLabel }}</b> 取货（以提交后订单显示为准）。
         备货完成后到服务点出示取货码自提，现场支付。
       </p>
+
+      <div v-if="notice" class="card mt-3 p-4">
+        <div class="section-title">取货须知</div>
+        <p class="mt-1 text-xs leading-6 whitespace-pre-line text-[var(--sc-sub)]">{{ notice }}</p>
+      </div>
 
       <div class="mt-4">
         <van-button
@@ -67,12 +73,29 @@ const cart = useCartStore();
 const router = useRouter();
 const remark = ref("");
 const submitting = ref(false);
+// 取货信息以服务端为准（Asia/Shanghai 业务时区算批次），本机时间只是兜底
+const pickupLabel = ref(fmtPickupDate(pickupDateFor(new Date())));
+const cutoffHour = ref(16);
+const notice = ref("");
 
-// 直接进本页但没勾任何商品（如手输网址）：回购物车，别让老师提交空单
-onMounted(() => {
+onMounted(async () => {
+  // 直接进本页但没勾任何商品（如手输网址）：回购物车，别让老师提交空单
   if (!cart.selectedItems.length) {
     showToast("请先勾选要结算的商品");
     router.replace("/m/cart");
+  }
+  try {
+    const info = await api<{ pickup_date: string; cutoff_hour: number }>("/api/pickup-info");
+    pickupLabel.value = fmtPickupDate(info.pickup_date);
+    cutoffHour.value = info.cutoff_hour;
+  } catch {
+    /* 服务端取不到就用本机时间估的批次，下单后仍以订单为准 */
+  }
+  try {
+    const n = await api<{ content: string }>("/api/notice");
+    notice.value = (n.content || "").trim();
+  } catch {
+    /* 须知拉不到不拦下单 */
   }
 });
 

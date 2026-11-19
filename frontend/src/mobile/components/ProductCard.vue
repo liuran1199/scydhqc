@@ -10,7 +10,7 @@
     <div class="flex-1 min-w-0">
       <router-link :to="'/m/product/' + p.id" class="block">
         <div class="font-medium text-[15px] leading-5 truncate">{{ p.name }}</div>
-        <div class="mt-0.5 text-xs text-[--sc-sub] truncate">
+        <div class="mt-0.5 text-xs text-[var(--sc-sub)] truncate">
           {{ p.spec }}<template v-if="p.spec && p.unit"> · </template>{{ p.unit }}
         </div>
       </router-link>
@@ -19,7 +19,7 @@
           <span class="price">￥{{ fmtMoney(p.price_sale) }}</span>
           <span
             v-if="p.price_original > p.price_sale"
-            class="ml-1.5 text-xs text-[--sc-sub] line-through"
+            class="ml-1.5 text-xs text-[var(--sc-sub)] line-through"
           >
             ￥{{ fmtMoney(p.price_original) }}
           </span>

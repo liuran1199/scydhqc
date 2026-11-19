@@ -223,7 +223,7 @@ function reset() {
   font-variant-numeric: tabular-nums;
 }
 .cell.filled {
-  border-color: var(--sc-text, #2b333d);
+  border-color: var(--sc-ink, #2b333d);
 }
 .cell.cursor {
   border-color: var(--el-color-primary, #1f7a4d);

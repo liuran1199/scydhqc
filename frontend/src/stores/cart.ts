@@ -13,9 +13,16 @@ export interface CartItem {
 
 const KEY = "sc_cart";
 
+// 购物车按工号隔离：同一浏览器换账号登录（如公用电脑）不共享购物车
+let owner = "";
+
+function keyFor(): string {
+  return owner ? `sc_cart_${owner}` : KEY;
+}
+
 function load(): CartItem[] {
   try {
-    const raw = JSON.parse(localStorage.getItem(KEY) || "[]");
+    const raw = JSON.parse(localStorage.getItem(keyFor()) || "[]");
     // 旧数据没有 checked 字段：默认全选，避免升级后出现"购物车有货却结不了账"
     return (Array.isArray(raw) ? raw : []).map((i) => ({ ...i, checked: i.checked ?? true }));
   } catch {
@@ -38,8 +45,20 @@ export const useCartStore = defineStore("cart", {
     qtyOf: (s) => (pid: number) => s.items.find((i) => i.product_id === pid)?.qty ?? 0,
   },
   actions: {
+    /** 登录身份确定后调用（路由守卫）：切换到该账号自己的购物车 */
+    setOwner(empid: string) {
+      if (empid === owner) return;
+      const k = `sc_cart_${empid}`;
+      // 首次按账号隔离时，把旧全局购物车迁移给当前账号，老用户升级不丢车
+      if (localStorage.getItem(k) === null) {
+        const legacy = localStorage.getItem(KEY);
+        if (legacy !== null) localStorage.setItem(k, legacy);
+      }
+      owner = empid;
+      this.items = load();
+    },
     save() {
-      localStorage.setItem(KEY, JSON.stringify(this.items));
+      localStorage.setItem(keyFor(), JSON.stringify(this.items));
     },
     add(p: {
       id: number;

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useUserStore } from "../stores/user";
 import { useAdminStore } from "../stores/admin";
+import { useCartStore } from "../stores/cart";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -73,6 +74,8 @@ router.beforeEach(async (to) => {
       window.location.href = "/api/auth/cas/login"; // CAS 静默往返
       return false;
     }
+    // 登录身份确定后切到该账号自己的购物车（公用电脑换账号不串车）
+    useCartStore().setOwner(u.user.empid);
   }
   return true;
 });

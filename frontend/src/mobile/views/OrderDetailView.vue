@@ -8,36 +8,41 @@
         <p v-if="o.pickup_date" class="mt-2 text-center text-sm">
           取货日期：<b>{{ fmtPickupDate(o.pickup_date) }}</b>
         </p>
-        <p v-if="o.status === 'PENDING'" class="mt-1 text-center text-xs text-[--sc-sub]">
+        <p v-if="o.status === 'PENDING'" class="mt-1 text-center text-xs text-[var(--sc-sub)]">
           正在备货，备货完成后即可到店取货
         </p>
       </div>
 
       <div class="card p-4">
         <div class="flex justify-between items-center">
-          <span class="font-bold" :class="o.status === 'CANCELLED' ? 'text-[--sc-sub]' : ''">
+          <span class="font-bold" :class="o.status === 'CANCELLED' ? 'text-[var(--sc-sub)]' : ''">
             {{ o.status_label }}
           </span>
-          <span class="text-xs text-[--sc-sub]">{{ o.order_no }}</span>
+          <span class="text-xs text-[var(--sc-sub)]">{{ o.order_no }}</span>
         </div>
         <div class="mt-2 text-sm">
           <div v-for="(i, idx) in o.items" :key="idx" class="flex justify-between gap-3 py-1.5">
             <span class="min-w-0">
               {{ i.p_name }}
-              <span class="text-[--sc-sub]">（{{ i.p_spec }}）</span>
+              <span class="text-[var(--sc-sub)]">（{{ i.p_spec }}）</span>
               × {{ i.qty }}{{ i.p_unit }}
             </span>
             <span class="shrink-0">￥{{ fmtMoney(i.subtotal) }}</span>
           </div>
-          <div class="flex justify-between pt-2.5 mt-1 border-t border-[--sc-line] font-bold">
+          <div class="flex justify-between pt-2.5 mt-1 border-t border-[var(--sc-line)] font-bold">
             <span>合计（取货时支付）</span>
-            <span class="text-[--sc-price]">￥{{ fmtMoney(o.total) }}</span>
+            <span class="text-[var(--sc-price)]">￥{{ fmtMoney(o.total) }}</span>
           </div>
-          <div v-if="o.remark" class="mt-2 text-xs text-[--sc-sub]">备注：{{ o.remark }}</div>
+          <div v-if="o.remark" class="mt-2 text-xs text-[var(--sc-sub)]">备注：{{ o.remark }}</div>
           <div v-if="o.status === 'CANCELLED'" class="mt-2 text-xs text-[#c05050]">
             取消原因：{{ o.cancel_reason }}
           </div>
         </div>
+      </div>
+
+      <div v-if="notice" class="card p-4">
+        <div class="font-semibold text-sm">取货须知</div>
+        <p class="mt-1 text-xs leading-6 whitespace-pre-line text-[var(--sc-sub)]">{{ notice }}</p>
       </div>
 
       <van-button
@@ -77,6 +82,7 @@ interface OrderDetail {
 const route = useRoute();
 const router = useRouter();
 const o = ref<OrderDetail | null>(null);
+const notice = ref("");
 
 async function load() {
   try {
@@ -84,6 +90,15 @@ async function load() {
   } catch (e) {
     showFailToast(e instanceof Error ? e.message : "加载失败");
     router.replace("/m/orders");
+  }
+  if (!notice.value) {
+    try {
+      // 取货须知（后台"系统设置"维护）：地址、营业时间、支付方式在此告知老师
+      const n = await api<{ content: string }>("/api/notice");
+      notice.value = (n.content || "").trim();
+    } catch {
+      /* 拉不到不影响看单 */
+    }
   }
 }
 

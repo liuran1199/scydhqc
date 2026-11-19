@@ -21,12 +21,12 @@
             @click="router.push(`/m/order/${o.id}`)"
           >
             <div class="flex justify-between items-center">
-              <span class="text-xs text-[--sc-sub]">{{ o.order_no }}</span>
+              <span class="text-xs text-[var(--sc-sub)]">{{ o.order_no }}</span>
               <span class="status" :class="statusClass(o.status)">{{ o.status_label }}</span>
             </div>
             <div class="mt-1.5 text-sm leading-5">{{ itemsText(o) }}</div>
             <div class="mt-1.5 flex justify-between items-center">
-              <span class="text-xs text-[--sc-sub]">
+              <span class="text-xs text-[var(--sc-sub)]">
                 <template v-if="o.pickup_date && (o.status === 'PENDING' || o.status === 'READY')">
                   {{ fmtPickupDate(o.pickup_date) }}取货 ·
                 </template>

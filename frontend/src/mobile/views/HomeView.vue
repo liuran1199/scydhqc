@@ -4,13 +4,13 @@
       <div class="px-4 pt-4 pb-2 flex items-baseline justify-between">
         <div>
           <h1 class="text-[19px] font-bold tracking-wide">食材服务点</h1>
-          <p class="mt-0.5 text-xs text-[--sc-sub]">线上预订 · 备好后自提 · 现场支付</p>
+          <p class="mt-0.5 text-xs text-[var(--sc-sub)]">线上预订 · 备好后自提 · 现场支付</p>
         </div>
-        <span v-if="user?.name" class="text-xs text-[--sc-sub]">{{ user.name }}，你好</span>
+        <span v-if="user?.name" class="text-xs text-[var(--sc-sub)]">{{ user.name }}，你好</span>
       </div>
     </div>
 
-    <div class="sticky top-0 z-10 bg-[--sc-bg]/95 backdrop-blur">
+    <div class="sticky top-0 z-10 bg-[var(--sc-bg)]/95 backdrop-blur">
       <div class="flex items-center px-3 pt-2">
         <van-search
           v-model="q"
@@ -50,7 +50,7 @@
       />
     </div>
 
-    <div v-if="total" class="pb-4 text-center text-xs text-[--sc-sub]">
+    <div v-if="total" class="pb-4 text-center text-xs text-[var(--sc-sub)]">
       共 {{ total }} 件商品
     </div>
   </div>

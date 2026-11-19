@@ -5,7 +5,7 @@
         <div class="brand-mark">食</div>
         <div>
           <h1 class="text-[18px] font-bold tracking-wide">食材服务点</h1>
-          <p class="text-xs text-[--sc-sub] mt-0.5">后勤管理处 · 预订管理后台</p>
+          <p class="text-xs text-[var(--sc-sub)] mt-0.5">后勤管理处 · 预订管理后台</p>
         </div>
       </div>
       <el-form label-position="top" @submit.prevent="login">
@@ -39,7 +39,7 @@
           {{ loading ? "登录中…" : "登 录" }}
         </el-button>
       </el-form>
-      <p class="mt-5 text-center text-xs text-[--sc-sub]">
+      <p class="mt-5 text-center text-xs text-[var(--sc-sub)]">
         仅限后勤管理人员使用，账号由系统管理员分配
       </p>
     </div>
