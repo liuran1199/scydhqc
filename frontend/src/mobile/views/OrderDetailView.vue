@@ -5,7 +5,10 @@
     <div class="p-3 grid gap-3">
       <div v-if="o.status === 'READY' || o.status === 'PENDING'">
         <PickupCode :code="o.pickup_code" :order-no="o.order_no" />
-        <p v-if="o.status === 'PENDING'" class="mt-2 text-center text-xs text-[--sc-sub]">
+        <p v-if="o.pickup_date" class="mt-2 text-center text-sm">
+          取货日期：<b>{{ fmtPickupDate(o.pickup_date) }}</b>
+        </p>
+        <p v-if="o.status === 'PENDING'" class="mt-1 text-center text-xs text-[--sc-sub]">
           正在备货，备货完成后即可到店取货
         </p>
       </div>
@@ -55,7 +58,7 @@ import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { showConfirmDialog, showFailToast, showSuccessToast } from "vant";
 import { api } from "../../api/http";
-import { fmtMoney } from "../../shared/format";
+import { fmtMoney, fmtPickupDate } from "../../shared/format";
 import PickupCode from "../components/PickupCode.vue";
 
 interface OrderDetail {
@@ -66,6 +69,7 @@ interface OrderDetail {
   total: number;
   remark: string;
   pickup_code: string;
+  pickup_date: string | null;
   cancel_reason: string;
   items: { p_name: string; p_spec: string; p_unit: string; qty: number; subtotal: number }[];
 }

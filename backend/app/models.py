@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -67,6 +67,8 @@ class Order(Base):
     total: Mapped[int] = mapped_column(Integer, default=0)  # 分
     remark: Mapped[str] = mapped_column(String(255), default="")
     pickup_code: Mapped[str] = mapped_column(String(8), unique=True, index=True)
+    # 取货批次（16 点截单规则），备货单/小票按它圈定
+    pickup_date: Mapped[date | None] = mapped_column(Date, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     ready_at: Mapped[datetime | None] = mapped_column(DateTime)
     done_at: Mapped[datetime | None] = mapped_column(DateTime)

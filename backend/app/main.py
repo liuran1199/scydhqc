@@ -88,6 +88,7 @@ def create_app() -> FastAPI:
         import app.models  # noqa: F401 确保模型注册
         Base.metadata.create_all(bind=engine)
         _ensure_product_images_column()
+        _ensure_order_pickup_date_column()
         with SessionLocal() as s:
             ensure_initial_admin(s)
 
@@ -105,6 +106,29 @@ def create_app() -> FastAPI:
                 "WHERE image IS NOT NULL AND image != '' "
                 "AND (images IS NULL OR images = '')"
             ))
+
+    def _ensure_order_pickup_date_column():
+        """已有库升级：orders 补 pickup_date 列，历史订单按 16 点截单规则回填（幂等）。
+
+        日期回填在 Python 侧算：MySQL/SQLite 的 SQL 日期函数不统一。
+        """
+        from datetime import datetime as _dt
+        from sqlalchemy import text
+        from app.services.orders import pickup_date_for
+        with engine.begin() as conn:
+            try:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN pickup_date DATE"))
+            except Exception:  # 列已存在
+                pass
+        with SessionLocal() as s:
+            rows = s.execute(
+                text("SELECT id, created_at FROM orders WHERE pickup_date IS NULL")
+            ).all()
+            for oid, created in rows:
+                placed = created if isinstance(created, _dt) else _dt.fromisoformat(str(created))
+                s.execute(text("UPDATE orders SET pickup_date = :d WHERE id = :id"),
+                          {"d": pickup_date_for(placed), "id": oid})
+            s.commit()
 
     return app
 

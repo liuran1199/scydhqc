@@ -27,6 +27,9 @@
             <div class="mt-1.5 text-sm leading-5">{{ itemsText(o) }}</div>
             <div class="mt-1.5 flex justify-between items-center">
               <span class="text-xs text-[--sc-sub]">
+                <template v-if="o.pickup_date && (o.status === 'PENDING' || o.status === 'READY')">
+                  {{ fmtPickupDate(o.pickup_date) }}取货 ·
+                </template>
                 {{ (o.created_at || "").slice(5, 16).replace("T", " ") }}
               </span>
               <span class="font-bold">￥{{ fmtMoney(o.total) }}</span>
@@ -48,7 +51,7 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { showFailToast } from "vant";
 import { api } from "../../api/http";
-import { fmtMoney } from "../../shared/format";
+import { fmtMoney, fmtPickupDate } from "../../shared/format";
 
 interface OrderRow {
   id: number;
@@ -56,6 +59,7 @@ interface OrderRow {
   status: string;
   status_label: string;
   total: number;
+  pickup_date: string | null;
   created_at: string | null;
   items: { p_name: string; qty: number }[];
 }

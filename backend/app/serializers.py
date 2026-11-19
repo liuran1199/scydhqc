@@ -34,6 +34,7 @@ def order_to_dict(o: Order, include_user: bool = False) -> dict:
         "id": o.id, "order_no": o.order_no, "status": o.status,
         "status_label": STATUS_LABEL[o.status], "total": o.total,
         "remark": o.remark, "pickup_code": o.pickup_code,
+        "pickup_date": o.pickup_date.isoformat() if o.pickup_date else None,
         "created_at": o.created_at.isoformat() if o.created_at else None,
         "ready_at": o.ready_at.isoformat() if o.ready_at else None,
         "done_at": o.done_at.isoformat() if o.done_at else None,

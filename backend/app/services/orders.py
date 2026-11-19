@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import update
 from sqlalchemy.orm import Session
@@ -7,6 +7,15 @@ from app.exceptions import AppError
 from app.models import Order, OrderItem, Product, User
 from app.serializers import STATUS_LABEL as STATUS_LABELS
 from app.services.pickup_code import generate_pickup_code
+
+# 备货截单点：每天 16:00 前下单次日取货，16:00 后下单隔日取货
+PICKUP_CUTOFF_HOUR = 16
+
+
+def pickup_date_for(placed_at: datetime) -> date:
+    """下单时间 → 取货日期（16 点截单规则，边界 16:00 整属后一批）。"""
+    cutoff = placed_at.replace(hour=PICKUP_CUTOFF_HOUR, minute=0, second=0, microsecond=0)
+    return (placed_at + timedelta(days=1 if placed_at < cutoff else 2)).date()
 
 
 def create_order(db: Session, user: User, items: list[dict], remark: str = "") -> Order:
@@ -38,7 +47,8 @@ def create_order(db: Session, user: User, items: list[dict], remark: str = "") -
                 raise AppError(400, f"「{p.name}」库存不足，请修改数量")
     order = Order(order_no="TMP", user_id=user.id, status="PENDING",
                   remark=(remark or "")[:255],
-                  pickup_code=generate_pickup_code(db))
+                  pickup_code=generate_pickup_code(db),
+                  pickup_date=pickup_date_for(datetime.now()))
     db.add(order)
     db.flush()  # 拿 id
     order.order_no = f"{datetime.now():%Y%m%d}-{order.id:06d}"

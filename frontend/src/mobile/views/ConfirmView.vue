@@ -35,8 +35,8 @@
       </div>
 
       <p class="mt-3 px-2 text-xs leading-5 text-[--sc-sub]">
-        提交后请等待后勤备货，状态变为「待取货」即可到服务点取货，
-        取货时出示取货码，现场支付。
+        每天 16:00 截单：本单预计 <b class="text-[--sc-text]">{{ fmtPickupDate(pickupDateFor(new Date())) }}</b> 取货。
+        备货完成后到服务点出示取货码自提，现场支付。
       </p>
 
       <div class="mt-4">
@@ -61,7 +61,7 @@ import { useRouter } from "vue-router";
 import { showConfirmDialog, showFailToast, showToast, showSuccessToast } from "vant";
 import { api } from "../../api/http";
 import { useCartStore } from "../../stores/cart";
-import { fmtMoney } from "../../shared/format";
+import { fmtMoney, fmtPickupDate, pickupDateFor } from "../../shared/format";
 
 const cart = useCartStore();
 const router = useRouter();
@@ -112,7 +112,7 @@ async function submit() {
       }),
     });
     cart.removeSelected(); // 只清本次结算的，未勾选的留在车里
-    showSuccessToast("下单成功，备货完成后凭取货码到服务点自提");
+    showSuccessToast(`下单成功，${fmtPickupDate(order.pickup_date)}凭取货码自提`);
     router.replace(`/m/order/${order.id}`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "下单失败";
