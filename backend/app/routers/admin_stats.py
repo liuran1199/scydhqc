@@ -8,7 +8,10 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_admin
+from app.exceptions import AppError
 from app.models import Admin, AdminLog, Order
+from app.services.excel import _csv_safe
+from app.utils.times import now_cst
 
 router = APIRouter(prefix="/api/admin/stats", tags=["stats"],
                    dependencies=[Depends(get_current_admin)])
@@ -16,7 +19,7 @@ router = APIRouter(prefix="/api/admin/stats", tags=["stats"],
 
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db)):
-    now = datetime.now()
+    now = now_cst()
     today0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
     tomorrow0 = today0 + timedelta(days=1)
     done_today = (db.query(Order)
@@ -45,8 +48,11 @@ def dashboard(db: Session = Depends(get_db)):
 
 
 def _range_done(db: Session, date_from: str, date_to: str):
-    d0 = datetime.fromisoformat(date_from)
-    d1 = datetime.fromisoformat(date_to) + timedelta(days=1)
+    try:
+        d0 = datetime.fromisoformat(date_from)
+        d1 = datetime.fromisoformat(date_to) + timedelta(days=1)
+    except ValueError:
+        raise AppError(400, "日期格式不正确，应为 YYYY-MM-DD")
     return (d0, d1,
             db.query(Order).filter(Order.status == "DONE", Order.done_at >= d0,
                                    Order.done_at < d1).all())
@@ -84,9 +90,10 @@ def export(date_from: str, date_to: str, db: Session = Depends(get_db),
                "商品明细", "总额(元)", "核销人"])
     admins = {a.id: a.username for a in db.query(Admin).all()}
     for o in sorted(done, key=lambda x: x.done_at):
+        # 姓名/工号等来自用户侧，_csv_safe 防 Excel 公式注入（= + - @ 开头）
         ws.append([o.done_at.strftime("%Y-%m-%d %H:%M"), o.order_no, o.pickup_code,
-                   o.user.empid, o.user.name or "",
-                   "；".join(f"{i.p_name}×{i.qty}" for i in o.items),
+                   _csv_safe(o.user.empid), _csv_safe(o.user.name or ""),
+                   _csv_safe("；".join(f"{i.p_name}×{i.qty}" for i in o.items)),
                    o.total / 100, admins.get(o.verified_by, "")])
     buf = BytesIO()
     wb.save(buf)

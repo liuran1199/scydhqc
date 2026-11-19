@@ -100,3 +100,20 @@ def test_complete_by_code(client, db):
     assert client.post("/api/admin/orders/complete", json={"code": code}).status_code == 409
     log = db.query(AdminLog).filter_by(action="complete").first()
     assert log is not None and log.target == o.order_no
+
+
+def test_invalid_date_params_return_400(client, db):
+    """非法日期参数应 400 提示，而不是 fromisoformat 抛 500。"""
+    setup_(client, db, n=1)
+    assert client.get("/api/admin/orders?pickup_date=not-a-date").status_code == 400
+    assert client.get("/api/admin/orders?date_from=xx").status_code == 400
+    assert client.get("/api/admin/orders/receipts?pickup_date=2026-13-99").status_code == 400
+    assert client.get("/api/admin/orders/picking-list?pickup_date=oops").status_code == 400
+
+
+def test_receipts_rejects_over_limit(client, db):
+    """超过单次打印上限必须明确报错，不能静默截断漏单。"""
+    setup_(client, db, n=1)
+    ids = ",".join(str(i) for i in range(1, 502))  # 501 个 id
+    r = client.get(f"/api/admin/orders/receipts?ids={ids}")
+    assert r.status_code == 400 and "500" in r.json()["detail"]

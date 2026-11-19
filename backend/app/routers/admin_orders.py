@@ -10,10 +10,28 @@ from app.deps import get_current_admin
 from app.exceptions import AppError
 from app.models import Admin, AdminLog, Order, User
 from app.serializers import order_to_dict
-from app.services.orders import cancel_order, complete_order, mark_ready
+from app.services.orders import PICKUP_CUTOFF_HOUR, cancel_order, complete_order, mark_ready
+from app.utils.times import now_cst
 
 router = APIRouter(prefix="/api/admin/orders", tags=["admin-orders"],
                    dependencies=[Depends(get_current_admin)])
+
+# 打印接口单次上限：超了必须明确报错，不能静默截断漏单
+PRINT_LIMIT = 500
+
+
+def parse_date(s: str, name: str) -> date:
+    try:
+        return date.fromisoformat(s)
+    except ValueError:
+        raise AppError(400, f"{name} 格式不正确，应为 YYYY-MM-DD")
+
+
+def parse_datetime(s: str, name: str) -> datetime:
+    try:
+        return datetime.fromisoformat(s)
+    except ValueError:
+        raise AppError(400, f"{name} 格式不正确")
 
 
 @router.get("")
@@ -26,12 +44,12 @@ def admin_orders(status: str | None = None,
     if status:  # 支持逗号分隔多状态，如 PENDING,READY（备货批次角标用）
         query = query.filter(Order.status.in_([s.strip() for s in status.split(",") if s.strip()]))
     if pickup_date:
-        query = query.filter(Order.pickup_date == date.fromisoformat(pickup_date))
+        query = query.filter(Order.pickup_date == parse_date(pickup_date, "取货日期"))
     if date_from:
-        query = query.filter(Order.created_at >= datetime.fromisoformat(date_from))
+        query = query.filter(Order.created_at >= parse_datetime(date_from, "起始日期"))
     if date_to:
         query = query.filter(Order.created_at
-                             < datetime.fromisoformat(date_to) + timedelta(days=1))
+                             < parse_datetime(date_to, "截止日期") + timedelta(days=1))
     if q:
         like = f"%{q}%"
         query = (query.join(User, Order.user_id == User.id)
@@ -48,7 +66,8 @@ class ReadyIn(BaseModel):
 
 
 @router.post("/ready")
-def batch_ready(body: ReadyIn, db: Session = Depends(get_db)):
+def batch_ready(body: ReadyIn, db: Session = Depends(get_db),
+                admin: Admin = Depends(get_current_admin)):
     updated, failed = 0, []
     for oid in body.ids:
         o = db.get(Order, oid)
@@ -60,6 +79,10 @@ def batch_ready(body: ReadyIn, db: Session = Depends(get_db)):
             updated += 1
         except AppError as e:
             failed.append({"id": oid, "detail": e.msg})
+    if updated:
+        db.add(AdminLog(admin_id=admin.id, username=admin.username, action="ready",
+                        target="batch", detail=f"批量备货完成 {updated} 单"))
+        db.commit()
     return {"updated": updated, "failed": failed}
 
 
@@ -83,14 +106,11 @@ class CompleteIn(BaseModel):
 @router.post("/complete")
 def complete(body: CompleteIn, db: Session = Depends(get_db),
              admin: Admin = Depends(get_current_admin)):
-    """窗口核销取货：按取货码标记完成（货已交付）。"""
+    """窗口核销取货：按取货码标记完成（货已交付），核销人与日志在服务内同事务落库。"""
     o = db.query(Order).filter(Order.pickup_code == body.code.strip()).first()
     if not o:
         raise AppError(404, "取货码不存在，请核对")
-    o = complete_order(db, o)
-    db.add(AdminLog(admin_id=admin.id, username=admin.username, action="complete",
-                    target=o.order_no, detail=f"窗口核销（{body.code.strip()}）"))
-    db.commit()
+    o = complete_order(db, o, admin)
     return order_to_dict(o, include_user=True)
 
 
@@ -100,10 +120,7 @@ def admin_cancel(oid: int, body: CancelIn, db: Session = Depends(get_db),
     o = db.get(Order, oid)
     if not o:
         raise AppError(404, "订单不存在")
-    cancel_order(db, o, f"管理员取消：{body.reason}", by_admin=True)
-    db.add(AdminLog(admin_id=admin.id, username=admin.username, action="cancel",
-                    target=o.order_no, detail=body.reason))
-    db.commit()
+    cancel_order(db, o, f"管理员取消：{body.reason}", by_admin=True, admin=admin)
     return {"ok": True}
 
 
@@ -113,16 +130,21 @@ def receipts(ids: str | None = None, pickup_date: str | None = None,
     """打印小票数据：按订单 id 列表，或按取货批次（PENDING/READY）整批出。"""
     query = db.query(Order)
     if ids:
-        id_list = [int(x) for x in ids.split(",") if x.strip().isdigit()][:500]
+        id_list = [int(x) for x in ids.split(",") if x.strip().isdigit()]
         if not id_list:
             raise AppError(400, "订单 id 无效")
+        if len(id_list) > PRINT_LIMIT:
+            raise AppError(400, f"一次最多打印 {PRINT_LIMIT} 单，请分批")
         query = query.filter(Order.id.in_(id_list))
     elif pickup_date:
-        query = query.filter(Order.pickup_date == date.fromisoformat(pickup_date),
+        query = query.filter(Order.pickup_date == parse_date(pickup_date, "取货日期"),
                              Order.status.in_(["PENDING", "READY"]))
     else:
         raise AppError(400, "请指定订单 id 或取货日期")
-    orders = query.order_by(Order.id).limit(500).all()
+    total = query.count()
+    if total > PRINT_LIMIT:
+        raise AppError(400, f"该批次 {total} 单超过单次打印上限 {PRINT_LIMIT}，请分批处理")
+    orders = query.order_by(Order.id).limit(PRINT_LIMIT).all()
     return {"items": [order_to_dict(o, include_user=True) for o in orders]}
 
 
@@ -130,8 +152,8 @@ def receipts(ids: str | None = None, pickup_date: str | None = None,
 def picking_list(pickup_date: str | None = None,
                  db: Session = Depends(get_db), admin: Admin = Depends(get_current_admin)):
     """备货清单（A4 打印页数据）：按商品汇总 + 按订单明细。
-    不传日期默认今晚要备的批次：明天取货的订单（今天 16:00 截单）。"""
-    batch = date.fromisoformat(pickup_date) if pickup_date else date.today() + timedelta(days=1)
+    不传日期默认今晚要备的批次：明天取货的订单（今天截单点后属明后天批次）。"""
+    batch = parse_date(pickup_date, "取货日期") if pickup_date else now_cst().date() + timedelta(days=1)
     db.add(AdminLog(admin_id=admin.id, username=admin.username, action="export",
                     target="picking-list", detail=f"打印备货清单（{batch:%Y-%m-%d} 取货批次）"))
     db.commit()
@@ -146,6 +168,7 @@ def picking_list(pickup_date: str | None = None,
     summary = [{"p_name": n, "p_spec": s, "p_unit": u, "qty": q}
                for (n, s, u), q in sorted(agg.items())]
     return {"batch": batch.isoformat(),
+            "cutoff_hour": PICKUP_CUTOFF_HOUR,
             "total_orders": len(orders),
             "total_kinds": len(summary),
             "total_qty": sum(r["qty"] for r in summary),

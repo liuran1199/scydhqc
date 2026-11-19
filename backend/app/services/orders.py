@@ -4,9 +4,10 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.exceptions import AppError
-from app.models import Order, OrderItem, Product, User
+from app.models import Admin, AdminLog, Order, OrderItem, Product, User
 from app.serializers import STATUS_LABEL as STATUS_LABELS
 from app.services.pickup_code import generate_pickup_code
+from app.utils.times import now_cst
 
 # 备货截单点：每天 16:00 前下单次日取货，16:00 后下单隔日取货
 PICKUP_CUTOFF_HOUR = 16
@@ -45,13 +46,14 @@ def create_order(db: Session, user: User, items: list[dict], remark: str = "") -
             if res.rowcount == 0:
                 db.rollback()
                 raise AppError(400, f"「{p.name}」库存不足，请修改数量")
+    now = now_cst()
     order = Order(order_no="TMP", user_id=user.id, status="PENDING",
                   remark=(remark or "")[:255],
                   pickup_code=generate_pickup_code(db),
-                  pickup_date=pickup_date_for(datetime.now()))
+                  pickup_date=pickup_date_for(now))
     db.add(order)
     db.flush()  # 拿 id
-    order.order_no = f"{datetime.now():%Y%m%d}-{order.id:06d}"
+    order.order_no = f"{now:%Y%m%d}-{order.id:06d}"
     order.total = 0
     for p, qty in checked:
         db.add(OrderItem(order_id=order.id, product_id=p.id, p_name=p.name,
@@ -72,12 +74,13 @@ def restore_product_stock(db: Session, product_id: int, qty: int) -> None:
     )
 
 
-def cancel_order(db: Session, order: Order, reason: str, by_admin: bool = False) -> Order:
+def cancel_order(db: Session, order: Order, reason: str, by_admin: bool = False,
+                 admin: Admin | None = None) -> Order:
     # 条件更新：仅 PENDING/READY 可取消，并发安全
     res = db.execute(
         update(Order)
         .where(Order.id == order.id, Order.status.in_(["PENDING", "READY"]))
-        .values(status="CANCELLED", cancelled_at=datetime.now(),
+        .values(status="CANCELLED", cancelled_at=now_cst(),
                 cancel_reason=reason[:255])
     )
     if res.rowcount == 0:
@@ -88,6 +91,10 @@ def cancel_order(db: Session, order: Order, reason: str, by_admin: bool = False)
     for it in db.query(OrderItem).filter_by(order_id=order.id).all():
         if it.product_id:
             restore_product_stock(db, it.product_id, it.qty)
+    # 业务与操作日志同一事务：日志写不进则取消一并回滚，对账链条完整
+    if admin is not None:
+        db.add(AdminLog(admin_id=admin.id, username=admin.username, action="cancel",
+                        target=order.order_no, detail=reason[:255]))
     db.commit()
     return db.get(Order, order.id)
 
@@ -96,7 +103,7 @@ def mark_ready(db: Session, order: Order) -> Order:
     res = db.execute(
         update(Order)
         .where(Order.id == order.id, Order.status == "PENDING")
-        .values(status="READY", ready_at=datetime.now())
+        .values(status="READY", ready_at=now_cst())
     )
     if res.rowcount == 0:
         db.rollback()
@@ -106,17 +113,19 @@ def mark_ready(db: Session, order: Order) -> Order:
     return db.get(Order, order.id)
 
 
-def complete_order(db: Session, order: Order) -> Order:
-    """窗口核销取货：货已交到教职工手上，订单转 DONE。
-    允许 PENDING 直转（货给了就完成，窗口不做状态卡点）。"""
+def complete_order(db: Session, order: Order, admin: Admin) -> Order:
+    """窗口核销取货：货已交到教职工手上，订单转 DONE，核销人随单留痕。
+    允许 PENDING 直转（货给了就完成，窗口不做状态卡点）；业务与操作日志同事务。"""
     res = db.execute(
         update(Order)
         .where(Order.id == order.id, Order.status.in_(["PENDING", "READY"]))
-        .values(status="DONE", done_at=datetime.now())
+        .values(status="DONE", done_at=now_cst(), verified_by=admin.id)
     )
     if res.rowcount == 0:
         db.rollback()
         current = db.get(Order, order.id).status
         raise AppError(409, f"当前状态为「{STATUS_LABELS[current]}」，不能核销")
+    db.add(AdminLog(admin_id=admin.id, username=admin.username, action="complete",
+                    target=order.order_no, detail=f"窗口核销（{order.pickup_code}）"))
     db.commit()
     return db.get(Order, order.id)
