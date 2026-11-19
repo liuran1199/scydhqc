@@ -43,7 +43,7 @@
       <el-table :data="items" @selection-change="(s: AdminOrder[]) => (sel = s)">
         <el-table-column type="selection" width="44" :selectable="selectable" />
         <el-table-column prop="order_no" label="订单号" width="150" />
-        <el-table-column label="教职工" width="130">
+        <el-table-column label="订货人" width="130">
           <template #default="{ row }">
             {{ row.user?.name || "未补填" }}
             <span class="empid">（{{ row.user?.empid }}）</span>

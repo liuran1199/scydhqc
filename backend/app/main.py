@@ -1,3 +1,4 @@
+import logging
 import os
 
 from fastapi import FastAPI, Request
@@ -9,6 +10,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config import settings
 from app.database import Base, SessionLocal, engine
 from app.exceptions import AppError
+
+logging.basicConfig(  # 应用日志进 uvicorn 输出（/tmp/prod-uvicorn.log），带时间戳
+    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 
 def create_app() -> FastAPI:
