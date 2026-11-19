@@ -91,18 +91,22 @@ def create_app() -> FastAPI:
 
 
     def _ensure_product_images_column():
-        """已有库升级：products 补 images 列；旧单图数据回填为图集（幂等）"""
+        """已有库升级：products 补 images 列；旧单图数据回填为图集（幂等）。
+        回填走 Python 拼串：CONCAT 是 MySQL 方言，老版 SQLite（<3.44）没有。"""
         from sqlalchemy import text
         with engine.begin() as conn:
             try:
                 conn.execute(text("ALTER TABLE products ADD COLUMN images TEXT"))
             except Exception:  # 列已存在（MySQL/SQLite 均会报错而非 if not exists）
                 pass
-            conn.execute(text(
-                "UPDATE products SET images = CONCAT('[\"', image, '\"]') "
+            rows = conn.execute(text(
+                "SELECT id, image FROM products "
                 "WHERE image IS NOT NULL AND image != '' "
                 "AND (images IS NULL OR images = '')"
-            ))
+            )).all()
+            for pid, img in rows:
+                conn.execute(text("UPDATE products SET images = :v WHERE id = :id"),
+                             {"v": f'["{img}"]', "id": pid})
 
     def _ensure_order_pickup_date_column():
         """已有库升级：orders 补 pickup_date 列，历史订单按 16 点截单规则回填（幂等）。
