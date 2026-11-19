@@ -10,7 +10,7 @@ from app.deps import get_current_admin
 from app.exceptions import AppError
 from app.models import Admin, AdminLog, Order, User
 from app.serializers import order_to_dict
-from app.services.orders import cancel_order, mark_ready
+from app.services.orders import cancel_order, complete_order, mark_ready
 
 router = APIRouter(prefix="/api/admin/orders", tags=["admin-orders"],
                    dependencies=[Depends(get_current_admin)])
@@ -65,6 +65,33 @@ def batch_ready(body: ReadyIn, db: Session = Depends(get_db)):
 
 class CancelIn(BaseModel):
     reason: str
+
+
+@router.get("/by-code/{code}")
+def order_by_code(code: str, db: Session = Depends(get_db)):
+    """窗口核销：按取货码查单（老师出示 6 位码或扫码均走这里）。"""
+    o = db.query(Order).filter(Order.pickup_code == code.strip()).first()
+    if not o:
+        raise AppError(404, "取货码不存在，请核对")
+    return order_to_dict(o, include_user=True)
+
+
+class CompleteIn(BaseModel):
+    code: str
+
+
+@router.post("/complete")
+def complete(body: CompleteIn, db: Session = Depends(get_db),
+             admin: Admin = Depends(get_current_admin)):
+    """窗口核销取货：按取货码标记完成（货已交付）。"""
+    o = db.query(Order).filter(Order.pickup_code == body.code.strip()).first()
+    if not o:
+        raise AppError(404, "取货码不存在，请核对")
+    o = complete_order(db, o)
+    db.add(AdminLog(admin_id=admin.id, username=admin.username, action="complete",
+                    target=o.order_no, detail=f"窗口核销（{body.code.strip()}）"))
+    db.commit()
+    return order_to_dict(o, include_user=True)
 
 
 @router.post("/{oid}/cancel")

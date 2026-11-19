@@ -65,3 +65,27 @@ def test_picking_list_writes_admin_log(client, db):
     assert client.get("/api/admin/orders/picking-list").status_code == 200
     log = db.query(AdminLog).filter_by(action="export").first()
     assert log is not None and log.target == "picking-list"
+
+
+def test_order_by_code(client, db):
+    """窗口按取货码查单：命中带订货人，未命中 404"""
+    ids = setup_(client, db, n=1)
+    code = db.get(Order, ids[0]).pickup_code
+    r = client.get(f"/api/admin/orders/by-code/{code}")
+    assert r.status_code == 200
+    assert r.json()["user"]["name"] == "老师0"
+    assert client.get("/api/admin/orders/by-code/000000").status_code == 404
+
+
+def test_complete_by_code(client, db):
+    """窗口核销：PENDING 可直接核销为 DONE，重复核销 409，落操作日志"""
+    from app.models import AdminLog
+    ids = setup_(client, db, n=1)
+    code = db.get(Order, ids[0]).pickup_code
+    r = client.post("/api/admin/orders/complete", json={"code": code})
+    assert r.status_code == 200
+    o = db.get(Order, ids[0])
+    assert o.status == "DONE" and o.done_at is not None
+    assert client.post("/api/admin/orders/complete", json={"code": code}).status_code == 409
+    log = db.query(AdminLog).filter_by(action="complete").first()
+    assert log is not None and log.target == o.order_no

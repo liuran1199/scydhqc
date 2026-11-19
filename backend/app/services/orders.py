@@ -104,3 +104,19 @@ def mark_ready(db: Session, order: Order) -> Order:
         raise AppError(409, f"当前状态为「{STATUS_LABELS[current]}」，不能备货完成")
     db.commit()
     return db.get(Order, order.id)
+
+
+def complete_order(db: Session, order: Order) -> Order:
+    """窗口核销取货：货已交到教职工手上，订单转 DONE。
+    允许 PENDING 直转（货给了就完成，窗口不做状态卡点）。"""
+    res = db.execute(
+        update(Order)
+        .where(Order.id == order.id, Order.status.in_(["PENDING", "READY"]))
+        .values(status="DONE", done_at=datetime.now())
+    )
+    if res.rowcount == 0:
+        db.rollback()
+        current = db.get(Order, order.id).status
+        raise AppError(409, f"当前状态为「{STATUS_LABELS[current]}」，不能核销")
+    db.commit()
+    return db.get(Order, order.id)

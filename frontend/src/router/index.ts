@@ -30,6 +30,11 @@ const router = createRouter({
       path: "/admin/print/picking-list",
       component: () => import("../admin/views/PickingListPrintView.vue"),
     },
+    // 窗口核销：手机竖屏独立页（扫码/输码两个入口都落这里）
+    {
+      path: "/admin/verify",
+      component: () => import("../admin/views/VerifyView.vue"),
+    },
     {
       path: "/admin",
       component: () => import("../admin/AdminLayout.vue"),

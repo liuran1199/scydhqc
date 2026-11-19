@@ -4,7 +4,7 @@
 
     <div class="p-3 grid gap-3">
       <div v-if="o.status === 'READY' || o.status === 'PENDING'">
-        <PickupCode :code="o.pickup_code" :order-no="o.order_no" />
+        <PickupCode :code="o.pickup_code" />
         <p v-if="o.pickup_date" class="mt-2 text-center text-sm">
           取货日期：<b>{{ fmtPickupDate(o.pickup_date) }}</b>
         </p>
