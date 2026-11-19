@@ -12,8 +12,9 @@ const router = createRouter({
       children: [
         { path: "", component: () => import("../mobile/views/HomeView.vue") },
         { path: "orders", component: () => import("../mobile/views/OrdersView.vue") },
-        // 自带底部操作条（提交栏/操作栏）的页面隐藏全局导航，避免两条底栏重叠遮挡
-        { path: "cart", component: () => import("../mobile/views/CartView.vue"), meta: { hideTabbar: true } },
+        // 确认订单/商品详情是过程页，自带底部操作条，隐藏全局导航避免重叠；
+        // 购物车是主导航页：保留底部导航，结算栏叠在导航栏上方（淘宝/京东惯例）
+        { path: "cart", component: () => import("../mobile/views/CartView.vue") },
         { path: "confirm", component: () => import("../mobile/views/ConfirmView.vue"), meta: { hideTabbar: true } },
         { path: "order/:id", component: () => import("../mobile/views/OrderDetailView.vue") },
         { path: "product/:id", component: () => import("../mobile/views/ProductView.vue"), meta: { hideTabbar: true } },

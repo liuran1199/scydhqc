@@ -6,7 +6,7 @@
       <div class="card p-4">
         <div class="section-title">商品清单</div>
         <div
-          v-for="i in cart.items"
+          v-for="i in cart.selectedItems"
           :key="i.product_id"
           class="flex justify-between gap-3 py-2 text-sm"
         >
@@ -19,7 +19,7 @@
         </div>
         <div class="flex justify-between pt-3 mt-1 border-t border-[--sc-line] font-bold">
           <span>合计</span>
-          <span class="text-[--sc-price]">￥{{ fmtMoney(cart.totalCents) }}</span>
+          <span class="text-[--sc-price]">￥{{ fmtMoney(cart.selectedCents) }}</span>
         </div>
         <p class="mt-2 text-xs text-[--sc-sub]">取货时现场支付，线上不收款。</p>
       </div>
@@ -56,9 +56,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { showConfirmDialog, showFailToast, showSuccessToast } from "vant";
+import { showConfirmDialog, showFailToast, showToast, showSuccessToast } from "vant";
 import { api } from "../../api/http";
 import { useCartStore } from "../../stores/cart";
 import { fmtMoney } from "../../shared/format";
@@ -68,11 +68,19 @@ const router = useRouter();
 const remark = ref("");
 const submitting = ref(false);
 
+// 直接进本页但没勾任何商品（如手输网址）：回购物车，别让老师提交空单
+onMounted(() => {
+  if (!cart.selectedItems.length) {
+    showToast("请先勾选要结算的商品");
+    router.replace("/m/cart");
+  }
+});
+
 /** 服务端 409（加购后改价）：拉最新售价覆盖购物车，请老师核对后重新提交 */
 async function resyncPricesAndConfirm() {
   try {
     const latest = await Promise.all(
-      cart.items.map((i) =>
+      cart.selectedItems.map((i) =>
         api<{ id: number; price_sale: number }>(`/api/products/${i.product_id}`)
       )
     );
@@ -95,7 +103,7 @@ async function submit() {
       method: "POST",
       body: JSON.stringify({
         // price_sale 为加购时的价格快照：管理端改价后服务端 409，绝不静默按新价成交
-        items: cart.items.map((i) => ({
+        items: cart.selectedItems.map((i) => ({
           product_id: i.product_id,
           qty: i.qty,
           price_sale: i.price_sale,
@@ -103,7 +111,7 @@ async function submit() {
         remark: remark.value,
       }),
     });
-    cart.clear();
+    cart.removeSelected(); // 只清本次结算的，未勾选的留在车里
     showSuccessToast("下单成功，备货完成后凭取货码到服务点自提");
     router.replace(`/m/order/${order.id}`);
   } catch (e) {

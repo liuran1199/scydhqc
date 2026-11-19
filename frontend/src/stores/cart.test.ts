@@ -74,6 +74,68 @@ describe("cart store", () => {
   });
 });
 
+describe("cart 勾选模型（电商惯例：结算只算勾选项）", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setActivePinia(createPinia());
+  });
+
+  it("新加购默认勾选", async () => {
+    const { useCartStore } = await import("./cart");
+    const P = { id: 1, name: "大米", spec: "5kg", unit: "袋", price_sale: 6620 };
+    const c = useCartStore();
+    c.add(P as never);
+    expect(c.items[0].checked).toBe(true);
+    expect(c.selectedCount).toBe(1);
+    expect(c.selectedCents).toBe(6620);
+  });
+
+  it("取消勾选后合计与结算件数只算勾选项，总数不变", async () => {
+    const { useCartStore } = await import("./cart");
+    const c = useCartStore();
+    c.add({ id: 1, name: "大米", spec: "5kg", unit: "袋", price_sale: 6620 } as never);
+    c.add({ id: 2, name: "豆油", spec: "5L", unit: "桶", price_sale: 5000 } as never);
+    c.setChecked(1, false);
+    expect(c.count).toBe(2); // 购物车总数（tabbar 角标）不受勾选影响
+    expect(c.selectedCount).toBe(1);
+    expect(c.selectedCents).toBe(5000);
+    expect(c.selectedItems.map((i) => i.product_id)).toEqual([2]);
+  });
+
+  it("全选 / 全不选", async () => {
+    const { useCartStore } = await import("./cart");
+    const c = useCartStore();
+    c.add({ id: 1, name: "大米", spec: "5kg", unit: "袋", price_sale: 6620 } as never);
+    c.add({ id: 2, name: "豆油", spec: "5L", unit: "桶", price_sale: 5000 } as never);
+    c.toggleAll(false);
+    expect(c.selectedCents).toBe(0);
+    c.toggleAll(true);
+    expect(c.selectedCents).toBe(6620 + 5000);
+  });
+
+  it("下单后 removeSelected 只清勾选项，未勾选留车", async () => {
+    const { useCartStore } = await import("./cart");
+    const c = useCartStore();
+    c.add({ id: 1, name: "大米", spec: "5kg", unit: "袋", price_sale: 6620 } as never);
+    c.add({ id: 2, name: "豆油", spec: "5L", unit: "桶", price_sale: 5000 } as never);
+    c.setChecked(1, false);
+    c.removeSelected();
+    expect(c.items.map((i) => i.product_id)).toEqual([1]);
+    expect(c.items[0].checked).toBe(false); // 留车项保持原勾选状态
+  });
+
+  it("旧版 localStorage（无 checked 字段）加载后默认全选", async () => {
+    localStorage.setItem(
+      "sc_cart",
+      JSON.stringify([{ product_id: 1, name: "大米", spec: "5kg", unit: "袋", price_sale: 6620, qty: 2 }]),
+    );
+    const { useCartStore } = await import("./cart");
+    const c = useCartStore();
+    expect(c.selectedCount).toBe(2);
+    expect(c.selectedCents).toBe(6620 * 2);
+  });
+});
+
 describe("cart syncPrices（改价后重确认，I-7）", () => {
   beforeEach(() => {
     localStorage.clear();
