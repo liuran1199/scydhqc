@@ -54,9 +54,9 @@
     <!-- 订单表 -->
     <div class="card" v-loading="loading">
       <el-table :data="items" @selection-change="(s: AdminOrder[]) => (sel = s)">
-        <el-table-column type="selection" width="44" :selectable="selectable" />
-        <el-table-column prop="order_no" label="订单号" width="150" />
-        <el-table-column label="订货人" width="130">
+        <el-table-column type="selection" width="42" :selectable="selectable" />
+        <el-table-column prop="order_no" label="订单号" width="162" class-name="nw" />
+        <el-table-column label="订货人" width="160" class-name="nw">
           <template #default="{ row }">
             {{ row.user?.name || "未补填" }}
             <span class="empid">（{{ row.user?.empid }}）</span>
@@ -67,32 +67,32 @@
             <span class="code">{{ row.pickup_code }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="商品" min-width="220" show-overflow-tooltip>
+        <el-table-column label="商品" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.items.map((i) => `${i.p_name}×${i.qty}`).join("；") }}
           </template>
         </el-table-column>
-        <el-table-column label="金额" width="100" align="right">
+        <el-table-column label="金额" width="92" align="right">
           <template #default="{ row }">
             <span class="amount">￥{{ fmtMoney(row.total) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="88">
+        <el-table-column label="状态" width="80">
           <template #default="{ row }">
             <el-tag :type="TAG[row.status]" size="small" effect="light">
               {{ row.status_label }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="下单时间" width="140">
+        <el-table-column label="下单时间" width="152" class-name="nw">
           <template #default="{ row }">
             {{ (row.created_at || "").slice(0, 16).replace("T", " ") }}
           </template>
         </el-table-column>
-        <el-table-column label="取货日期" width="120">
+        <el-table-column label="取货日期" width="140" class-name="nw">
           <template #default="{ row }">
             <span :class="{ 'pu-soon': row.pickup_date === batchDate }">
-              {{ row.pickup_date ? `${fmtPickupDate(row.pickup_date)}取` : "—" }}
+              {{ row.pickup_date ? fmtPickupDate(row.pickup_date) : "—" }}
             </span>
           </template>
         </el-table-column>
@@ -334,5 +334,9 @@ onMounted(() => {
 .pu-soon {
   color: var(--el-color-primary);
   font-weight: 600;
+}
+/* 关键列（订单号/订货人/时间/日期）不换行，宽度已按内容留足 */
+:deep(.el-table .nw .cell) {
+  white-space: nowrap;
 }
 </style>
