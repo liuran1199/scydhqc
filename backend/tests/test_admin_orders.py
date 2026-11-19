@@ -77,6 +77,17 @@ def test_order_by_code(client, db):
     assert client.get("/api/admin/orders/by-code/000000").status_code == 404
 
 
+def test_verify_endpoints_require_admin(db):
+    """核销双接口必须管理员鉴权：取货码会随二维码暴露，接口不能裸奔。"""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    anon = TestClient(app)  # 全新会话，未登录任何管理员
+    assert anon.get("/api/admin/orders/by-code/000000").status_code == 401
+    assert anon.post("/api/admin/orders/complete", json={"code": "000000"}).status_code == 401
+
+
 def test_complete_by_code(client, db):
     """窗口核销：PENDING 可直接核销为 DONE，重复核销 409，落操作日志"""
     from app.models import AdminLog
