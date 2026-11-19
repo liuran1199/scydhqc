@@ -71,15 +71,31 @@
         <van-button block round type="primary" class="action" @click="reset">继续核销下一单</van-button>
       </div>
     </template>
+
+    <!-- 引导态：非管理员（老师扫了自己的码） -->
+    <template v-else-if="phase === 'guest'">
+      <div class="guest">
+        <div class="guest-icon"><van-icon name="shop-o" /></div>
+        <h2>这是取货核销页面</h2>
+        <p>
+          由食堂工作人员使用。老师无需操作——取货时在窗口出示订单里的
+          <b>取货码</b> 或二维码，工作人员核对后即可取货。
+        </p>
+        <van-button block plain round type="primary" class="g-btn" @click="goLogin">
+          我是工作人员，去登录
+        </van-button>
+      </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { showFailToast } from "vant";
 import { api } from "../../api/http";
 import { fmtMoney } from "../../shared/format";
+import { useAdminStore } from "../../stores/admin";
 
 interface VerifyOrder {
   id: number;
@@ -91,8 +107,9 @@ interface VerifyOrder {
   user?: { empid: string; name: string | null };
 }
 
-type Phase = "input" | "order" | "done";
+type Phase = "input" | "order" | "done" | "guest";
 const route = useRoute();
+const router = useRouter();
 const phase = ref<Phase>("input");
 const code = ref("");
 const showKb = ref(true);
@@ -118,13 +135,24 @@ watch(code, async (v) => {
   }
 });
 
-// 扫码落地：URL 带 code 直接进订单态
+// 扫码落地：非管理员先看引导页（老师扫了自己的码）；管理员带 code 直接进订单态
 onMounted(async () => {
+  const adminStore = useAdminStore();
+  if (!adminStore.checked) await adminStore.fetch();
+  if (!adminStore.admin) {
+    phase.value = "guest";
+    return;
+  }
   const c = typeof route.query.code === "string" ? route.query.code.replace(/\D/g, "").slice(0, 6) : "";
   if (c.length === 6) {
     code.value = c; // 触发 watch 查单
   }
 });
+
+// 工作人员从引导页去登录，登录完带回原地址（含取货码）
+function goLogin() {
+  router.push({ path: "/admin/login", query: { redirect: route.fullPath } });
+}
 
 async function complete() {
   if (!order.value) return;
@@ -307,5 +335,38 @@ function reset() {
   font-size: 13px;
   color: var(--sc-sub, #8a9199);
   font-variant-numeric: tabular-nums;
+}
+
+/* ── 引导态（非管理员） ── */
+.guest {
+  text-align: center;
+  padding: 14vh 16px 0;
+}
+.guest-icon {
+  width: 84px;
+  height: 84px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  background: #eef3f0;
+  color: var(--el-color-primary, #1f7a4d);
+  font-size: 40px;
+  line-height: 84px;
+}
+.guest h2 {
+  font-size: 19px;
+  font-weight: 700;
+}
+.guest p {
+  margin: 12px 0 40px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--sc-sub, #8a9199);
+}
+.guest p b {
+  color: var(--sc-ink, #2b333d);
+}
+.g-btn {
+  max-width: 280px;
+  margin: 0 auto;
 }
 </style>

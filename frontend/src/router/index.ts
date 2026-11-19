@@ -58,7 +58,8 @@ router.beforeEach(async (to) => {
     const a = useAdminStore();
     if (to.path === "/admin/login") return true;
     if (!a.checked) await a.fetch();
-    if (!a.admin) return "/admin/login";
+    // 核销页放行未登录者：老师扫自己二维码会到这，展示引导页而非登录表单
+    if (!a.admin && to.path !== "/admin/verify") return "/admin/login";
     return true;
   }
   if (to.path.startsWith("/m")) {

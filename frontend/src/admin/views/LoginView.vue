@@ -48,7 +48,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { Lock, User } from "@element-plus/icons-vue";
 import { useAdminStore } from "../../stores/admin";
@@ -56,6 +56,7 @@ import { useAdminStore } from "../../stores/admin";
 const username = ref("");
 const password = ref("");
 const loading = ref(false);
+const route = useRoute();
 const router = useRouter();
 const store = useAdminStore();
 
@@ -67,7 +68,9 @@ async function login() {
   loading.value = true;
   try {
     await store.login(username.value, password.value);
-    router.push("/admin/dashboard");
+    // 支持登录后回跳（如核销页扫码进入未登录 → 登录完带回原流程）；只允许站内管理路径
+    const redirect = typeof route.query.redirect === "string" ? route.query.redirect : "";
+    router.push(redirect.startsWith("/admin") ? redirect : "/admin/dashboard");
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : "登录失败"); // 含锁定提示文案
   } finally {
