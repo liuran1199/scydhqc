@@ -34,7 +34,7 @@
         {{ fmtPickupDate(pickupFilter) }}取货批次
       </el-tag>
       <div class="spacer" />
-      <el-button :icon="Document" @click="download(batchXlsxUrl)">
+      <el-button :icon="Document" @click="printPickingList">
         今日备货单{{ batchCount ? `（${batchCount}）` : "" }}
       </el-button>
       <el-button :icon="Printer" @click="viewBatch">{{ batchFilterActive ? "退出本批" : "查看本批" }}</el-button>
@@ -128,7 +128,7 @@
 import { computed, onMounted, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Document, Printer } from "@element-plus/icons-vue";
-import { api, download } from "../../api/http";
+import { api } from "../../api/http";
 import { fmtMoney, fmtPickupDate } from "../../shared/format";
 
 interface OrderItem {
@@ -172,8 +172,11 @@ tomorrow.setDate(tomorrow.getDate() + 1);
 const batchDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
 const batchCount = ref(0);
 const pickupFilter = ref<string | null>(null);
-const batchXlsxUrl = `/api/admin/orders/picking-list.xlsx?pickup_date=${batchDate}`;
 const batchFilterActive = computed(() => pickupFilter.value === batchDate);
+
+function printPickingList() {
+  window.open(`/admin/print/picking-list?pickup_date=${batchDate}`, "_blank");
+}
 
 async function loadBatchCount() {
   try {

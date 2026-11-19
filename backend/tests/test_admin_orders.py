@@ -49,16 +49,19 @@ def test_admin_cancel_with_reason(client, db):
     assert o.status == "CANCELLED" and o.cancel_reason == "管理员取消：缺货"
 
 
-def test_picking_list_xlsx(client, db):
+def test_picking_list_json(client, db):
     setup_(client, db)
-    r = client.get("/api/admin/orders/picking-list.xlsx")
-    assert r.status_code == 200 and len(r.content) > 1000
+    r = client.get("/api/admin/orders/picking-list")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total_orders"] == len(body["orders"])
+    assert sum(row["qty"] for row in body["summary"]) == body["total_qty"]
 
 
 def test_picking_list_writes_admin_log(client, db):
-    """备货清单导出必须落操作日志（I-3）。"""
+    """备货清单打印必须落操作日志（I-3）。"""
     from app.models import AdminLog
     setup_(client, db)
-    assert client.get("/api/admin/orders/picking-list.xlsx").status_code == 200
+    assert client.get("/api/admin/orders/picking-list").status_code == 200
     log = db.query(AdminLog).filter_by(action="export").first()
     assert log is not None and log.target == "picking-list"

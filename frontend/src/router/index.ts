@@ -21,10 +21,14 @@ const router = createRouter({
       ],
     },
     { path: "/admin/login", component: () => import("../admin/views/LoginView.vue") },
-    // 打印小票：独立全屏页（不在管理布局内，打印时不带侧边栏）
+    // 打印页：独立全屏（不在管理布局内，打印时不带侧边栏）
     {
       path: "/admin/print/receipts",
       component: () => import("../admin/views/ReceiptsPrintView.vue"),
+    },
+    {
+      path: "/admin/print/picking-list",
+      component: () => import("../admin/views/PickingListPrintView.vue"),
     },
     {
       path: "/admin",

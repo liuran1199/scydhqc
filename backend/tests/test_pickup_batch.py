@@ -1,8 +1,5 @@
-"""16 点截单：取货批次 pickup_date 规则 + 备货单/小票接口按批次出数据。"""
+"""16 点截单：取货批次 pickup_date 规则 + 备货清单/小票接口按批次出数据。"""
 from datetime import date, timedelta
-from io import BytesIO
-
-from openpyxl import load_workbook
 
 from app.models import Admin, Order, Product
 from app.services.orders import pickup_date_for
@@ -65,7 +62,7 @@ def test_admin_filter_by_multi_status(client, db):
 
 
 def test_picking_list_scoped_to_batch(client, db):
-    """备货单 Excel 只含指定批次的订单"""
+    """备货清单只含指定批次，且按商品聚合数量"""
     d1 = seed_and_order(client, db)
     client.get("/api/auth/dev-login?empid=T002&name=李老师")
     r2 = client.post("/api/orders", json={"items": [{"product_id": db.query(Product).first().id,
@@ -75,23 +72,24 @@ def test_picking_list_scoped_to_batch(client, db):
     o2.pickup_date = batch + timedelta(days=1)  # 挪到别的批次
     db.commit()
     _admin_login(client, db)
-    resp = client.get(f"/api/admin/orders/picking-list.xlsx?pickup_date={batch}")
-    wb = load_workbook(BytesIO(resp.content))
-    nos = [row[0] for row in wb["按订单明细"].iter_rows(values_only=True)]
+    r = client.get(f"/api/admin/orders/picking-list?pickup_date={batch}").json()
+    nos = [o["order_no"] for o in r["orders"]]
     assert d1["order_no"] in nos and r2.json()["order_no"] not in nos
+    # 两单的商品/数量聚合到 summary（seed_and_order 下 1 件 + 本单 2 件）
+    assert r["total_orders"] == 1
+    assert sum(row["qty"] for row in r["summary"]) == sum(
+        i["qty"] for o in r["orders"] for i in o["items"])
 
 
 def test_picking_list_defaults_to_tomorrow_batch(client, db):
-    """不传日期默认导出今晚要备的批次（明天取货）"""
+    """不传日期默认今晚要备的批次（明天取货）"""
     d = seed_and_order(client, db)
     _admin_login(client, db)
     o = db.get(Order, d["id"])
     o.pickup_date = date.today() + timedelta(days=1)
     db.commit()
-    resp = client.get("/api/admin/orders/picking-list.xlsx")
-    wb = load_workbook(BytesIO(resp.content))
-    nos = [row[0] for row in wb["按订单明细"].iter_rows(values_only=True)]
-    assert d["order_no"] in nos
+    r = client.get("/api/admin/orders/picking-list").json()
+    assert d["order_no"] in [o["order_no"] for o in r["orders"]]
 
 
 def test_receipts_by_batch_ids_and_validation(client, db):

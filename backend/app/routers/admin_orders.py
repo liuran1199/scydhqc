@@ -1,9 +1,6 @@
 from datetime import date, datetime, timedelta
-from io import BytesIO
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import StreamingResponse
-from openpyxl import Workbook
 from pydantic import BaseModel
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -12,7 +9,7 @@ from app.database import get_db
 from app.deps import get_current_admin
 from app.exceptions import AppError
 from app.models import Admin, AdminLog, Order, User
-from app.serializers import STATUS_LABEL, order_to_dict
+from app.serializers import order_to_dict
 from app.services.orders import cancel_order, mark_ready
 
 router = APIRouter(prefix="/api/admin/orders", tags=["admin-orders"],
@@ -102,43 +99,28 @@ def receipts(ids: str | None = None, pickup_date: str | None = None,
     return {"items": [order_to_dict(o, include_user=True) for o in orders]}
 
 
-@router.get("/picking-list.xlsx")
+@router.get("/picking-list")
 def picking_list(pickup_date: str | None = None,
                  db: Session = Depends(get_db), admin: Admin = Depends(get_current_admin)):
-    # 不传日期默认导出今晚要备的批次：明天取货的订单（今天 16:00 截单）
+    """备货清单（A4 打印页数据）：按商品汇总 + 按订单明细。
+    不传日期默认今晚要备的批次：明天取货的订单（今天 16:00 截单）。"""
     batch = date.fromisoformat(pickup_date) if pickup_date else date.today() + timedelta(days=1)
     db.add(AdminLog(admin_id=admin.id, username=admin.username, action="export",
-                    target="picking-list", detail=f"导出备货清单（{batch:%Y-%m-%d} 取货批次）"))
+                    target="picking-list", detail=f"打印备货清单（{batch:%Y-%m-%d} 取货批次）"))
     db.commit()
     orders = (db.query(Order)
-              .filter(Order.status.in_(["PENDING", "READY"]), Order.pickup_date == batch)
+              .filter(Order.status.in_((["PENDING", "READY"])), Order.pickup_date == batch)
               .order_by(Order.id).all())
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "按商品汇总"
-    ws.append(["商品名称", "规格", "单位", "合计数量"])
     agg: dict[tuple, int] = {}
     for o in orders:
         for it in o.items:
             k = (it.p_name, it.p_spec, it.p_unit)
             agg[k] = agg.get(k, 0) + it.qty
-    for (n, s, u), qty in sorted(agg.items()):
-        ws.append([n, s, u, qty])
-    ws2 = wb.create_sheet("按订单明细")
-    ws2.append(["订单号", "状态", "工号", "姓名", "商品", "数量", "总额(元)", "备注",
-                "取货日期", "下单时间"])
-    for o in orders:
-        items_text = "；".join(f"{i.p_name}×{i.qty}" for i in o.items)
-        ws2.append([o.order_no, STATUS_LABEL[o.status], o.user.empid, o.user.name or "",
-                    items_text, sum(i.qty for i in o.items), o.total / 100,
-                    o.remark, batch.strftime("%m月%d日"),
-                    o.created_at.strftime("%m-%d %H:%M")])
-    buf = BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    return StreamingResponse(
-        buf,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": f"attachment; filename=picking-list-{batch:%Y%m%d}.xlsx",
-        })
+    summary = [{"p_name": n, "p_spec": s, "p_unit": u, "qty": q}
+               for (n, s, u), q in sorted(agg.items())]
+    return {"batch": batch.isoformat(),
+            "total_orders": len(orders),
+            "total_kinds": len(summary),
+            "total_qty": sum(r["qty"] for r in summary),
+            "summary": summary,
+            "orders": [order_to_dict(o, include_user=True) for o in orders]}
