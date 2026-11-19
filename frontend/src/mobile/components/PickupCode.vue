@@ -18,9 +18,9 @@ const props = defineProps<{ code: string }>();
 const dataUrl = ref("");
 
 onMounted(async () => {
-  // 码内容为核销页直达链接：窗口工作人员扫码即进订单核对页（替代旧 SC: 文本码）
+  // 码内容为手机核销页直达链接：窗口工作人员扫码即进订单核对页（替代旧 SC: 文本码）
   dataUrl.value = await QRCode.toDataURL(
-    `${window.location.origin}/admin/verify?code=${props.code}`,
+    `${window.location.origin}/admin/m/verify?code=${props.code}`,
     { width: 320, margin: 1, color: { dark: "#1f2933", light: "#ffffff" } },
   );
 });
