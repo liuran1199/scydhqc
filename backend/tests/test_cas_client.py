@@ -130,12 +130,17 @@ def test_get_user_invalid_ticket_raises(monkeypatch):
         HttpCASClient("https://sso.example.edu/tpass").get_user("bad", "s")
 
 
-def test_get_user_logs_raw_response(monkeypatch, caplog):
-    """诊断日志必须落原始响应——联调时据此确认学校 CAS 释放的属性名。"""
+def test_get_user_log_levels_no_pii_at_info(monkeypatch, caplog):
+    """INFO 只记结果摘要（工号+是否释放姓名），原始 XML（含姓名 PII）只在 DEBUG。"""
     monkeypatch.setattr(
         "app.auth.cas.httpx.get",
         lambda url, params=None, timeout=None: _Resp(ATTR_XML),
     )
     with caplog.at_level(logging.INFO, logger="app.auth.cas"):
         HttpCASClient("https://sso.example.edu/tpass").get_user("t", "s")
-    assert any("李四" in r.message for r in caplog.records)
+    info_msgs = [r.message for r in caplog.records if r.levelno == logging.INFO]
+    assert any("012005006" in m for m in info_msgs)      # 摘要可诊断
+    assert not any("李四" in m for m in info_msgs)        # 姓名 PII 不进 INFO
+    with caplog.at_level(logging.DEBUG, logger="app.auth.cas"):
+        HttpCASClient("https://sso.example.edu/tpass").get_user("t", "s")
+    assert any("李四" in r.message for r in caplog.records)  # DEBUG 按需可查

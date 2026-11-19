@@ -1,3 +1,4 @@
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from io import BytesIO
 
 from openpyxl import Workbook, load_workbook
@@ -9,10 +10,24 @@ HEADERS = ["商品名称", "规格", "单位", "品牌", "产地", "分类",
            "原价(元)", "售价(元)", "库存(空=无限)", "排序"]
 
 
-def _to_cents(v) -> int | None:
+def _to_cents(v) -> int:
+    """金额转分：Decimal 十进制舍入，避开 float 二进制误差（0.29*100=28.999…）。"""
     if v is None or v == "":
-        return None
-    return int(round(float(v) * 100))
+        raise ValueError("金额不能为空")
+    try:
+        d = Decimal(str(v).strip()) * 100
+    except (InvalidOperation, ValueError):
+        raise ValueError("金额必须是数字")
+    if not d.is_finite():
+        raise ValueError("金额必须是数字")
+    return int(d.to_integral_value(rounding=ROUND_HALF_UP))
+
+
+def _csv_safe(v):
+    """Excel 公式注入防护：用户可控文本以 = + - @ 开头时强制为文本（前缀单引号）。"""
+    if isinstance(v, str) and v[:1] in ("=", "+", "-", "@"):
+        return f"'{v}"
+    return v
 
 
 def build_product_template() -> Workbook:
@@ -33,15 +48,21 @@ def import_products_xlsx(db: Session, fileobj) -> dict:
         if not any(row):
             continue
         try:
-            # 先解析全部字段（任何解析错误都在动库之前抛出）
+            # 先解析并校验全部字段（与表单同规则），任何错误都在动库之前抛出
             name = str(row[0] or "").strip()
             spec = str(row[1] or "").strip()
             if not name:
                 raise ValueError("商品名称不能为空")
+            if len(name) > 128:
+                raise ValueError("商品名称过长（最多 128 字）")
             po, ps = _to_cents(row[6]), _to_cents(row[7])
-            if po is None or ps is None:
-                raise ValueError("原价/售价必须为数字")
+            if po <= 0:
+                raise ValueError("原价必须大于 0")
+            if ps <= 0:
+                raise ValueError("售价必须大于 0")
             stock = None if row[8] in (None, "") else int(row[8])
+            if stock is not None and stock < 0:
+                raise ValueError("库存不能为负（留空=无限）")
             sort = int(row[9]) if row[9] not in (None, "") else 0
             cat_name = str(row[5] or "").strip()
             # 再做库操作
@@ -80,8 +101,9 @@ def export_products_xlsx(db: Session) -> Workbook:
     ws.title = "商品"
     ws.append(HEADERS + ["状态", "id"])
     for p in db.query(Product).order_by(Product.sort, Product.id).all():
-        ws.append([p.name, p.spec, p.unit, p.brand, p.origin,
-                   p.category.name if p.category_id else "",
+        ws.append([_csv_safe(p.name), _csv_safe(p.spec), _csv_safe(p.unit),
+                   _csv_safe(p.brand), _csv_safe(p.origin),
+                   _csv_safe(p.category.name if p.category_id else ""),
                    p.price_original / 100, p.price_sale / 100,
                    "" if p.stock is None else p.stock, p.sort,
                    "在售" if p.status == "on" else "下架", p.id])

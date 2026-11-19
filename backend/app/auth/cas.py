@@ -45,9 +45,11 @@ class HttpCASClient(CASClient):
         r = httpx.get(f"{self.base_url}/p3/serviceValidate", params=params, timeout=10)
         if "cas:serviceResponse" not in r.text:
             r = httpx.post(f"{self.base_url}/serviceValidate", params=params, timeout=10)
-        # 诊断日志：联调期确认学校 CAS 实际释放哪些属性（ticket 一次性，此处已消费）
-        logger.info("CAS validate 原始响应: %s", r.text)
         m = re.search(r"<cas:user>(.*?)</cas:user>", r.text, re.S)
+        # 摘要日志只记结果；原始 XML 含工号/姓名等个人信息，降级到 DEBUG 按需开启
+        logger.info("CAS validate: user=%s name_released=%s",
+                    m.group(1).strip() if m else None, bool(_extract_name(r.text)))
+        logger.debug("CAS validate 原始响应: %s", r.text)
         if not m:
             raise RuntimeError("CAS ticket 校验失败")
         return m.group(1).strip(), _extract_name(r.text)

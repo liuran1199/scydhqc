@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
@@ -11,6 +11,7 @@ from app.deps import admin_codec, cookie_secure, get_current_admin
 from app.exceptions import AppError
 from app.models import Admin, AdminLog
 from app.utils.security import verify_password
+from app.utils.times import now_cst
 
 router = APIRouter(prefix="/api/admin/auth", tags=["admin-auth"])
 
@@ -28,10 +29,10 @@ def _register_fail(db: Session, aid: int) -> None:
     db.expire(db.get(Admin, aid))  # 丢弃 identity map 旧值，下面的读取走数据库
     a = db.get(Admin, aid)
     if a.failed_attempts >= MAX_FAILS and not (
-            a.locked_until and a.locked_until > datetime.now()):
+            a.locked_until and a.locked_until > now_cst()):
         db.execute(
             update(Admin).where(Admin.id == aid)
-            .values(locked_until=datetime.now() + timedelta(minutes=LOCK_MINUTES),
+            .values(locked_until=now_cst() + timedelta(minutes=LOCK_MINUTES),
                     failed_attempts=0)
         )
 
@@ -44,7 +45,7 @@ class LoginIn(BaseModel):
 @router.post("/login")
 def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     admin = db.query(Admin).filter_by(username=body.username).first()
-    now = datetime.now()
+    now = now_cst()
     if not admin or not verify_password(body.password, admin.password_hash):
         if admin:
             if not (admin.locked_until and admin.locked_until > now):
@@ -65,7 +66,7 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     db.commit()
     resp = JSONResponse({"id": admin.id, "username": admin.username,
                          "role": admin.role, "name": admin.name})
-    resp.set_cookie("sc_admin", admin_codec.dumps({"aid": admin.id}),
+    resp.set_cookie("sc_admin", admin_codec.dumps({"aid": admin.id, "sv": admin.session_version}),
                     httponly=True, samesite="lax", secure=cookie_secure(request))
     return resp
 

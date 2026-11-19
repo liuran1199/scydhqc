@@ -34,7 +34,8 @@ def get_current_admin(request: Request, db: Session = Depends(get_db)) -> Admin:
     if not data:
         raise AppError(401, "未登录")
     admin = db.get(Admin, data["aid"])
-    if not admin or not admin.is_active:
+    # 会话版本不匹配 = 密码已被改过，签发时的旧令牌一律作废（含已泄露的）
+    if not admin or not admin.is_active or data.get("sv", 0) != admin.session_version:
         raise AppError(401, "未登录")
     return admin
 

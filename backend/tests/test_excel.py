@@ -78,3 +78,21 @@ def test_export_writes_admin_log(client, db):
     assert client.get("/api/admin/products/export").status_code == 200
     log = db.query(AdminLog).filter_by(action="export").first()
     assert log is not None and log.target == "products"
+
+
+def test_import_rejects_bad_values(client, db):
+    """导入与表单同规则：非正价格、负库存必须整行报错，不能落库。"""
+    admin_login(client, db)
+    buf = xlsx_file([
+        ["负价米", "5kg", "袋", "", "", "", 67.5, -66.2, "", ""],   # 售价为负
+        ["零价米", "5kg", "袋", "", "", "", 67.5, 0, "", ""],       # 售价为零
+        ["负库存", "5kg", "袋", "", "", "", 67.5, 66.2, -3, ""],   # 库存为负
+    ])
+    r = client.post("/api/admin/products/import",
+                    files={"file": ("bad.xlsx", buf,
+                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")})
+    d = r.json()
+    assert d["created"] == 0 and len(d["errors"]) == 3
+    assert db.query(Product).count() == 0
+    msgs = "；".join(e["msg"] for e in d["errors"])
+    assert "售价" in msgs and "库存" in msgs

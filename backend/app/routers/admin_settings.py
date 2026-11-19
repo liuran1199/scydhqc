@@ -58,9 +58,25 @@ def update_admin(aid: int, body: AdminUpdateIn, db: Session = Depends(get_db),
     a = db.get(Admin, aid)
     if not a:
         raise AppError(404, "账号不存在")
+    # 后端校验（前端限制不可信）：角色合法、密码长度
+    if body.role is not None and body.role not in ("super", "operator"):
+        raise AppError(400, "角色不合法")
+    if body.password is not None and len(body.password) < 6:
+        raise AppError(400, "密码至少 6 位")
+    # 最后一个有效超管不可降级/停用，否则系统将无人可管
+    will_lose_super = (a.role == "super" and a.is_active and (
+        (body.role is not None and body.role != "super")
+        or (body.is_active is not None and not body.is_active)))
+    if will_lose_super:
+        others = (db.query(Admin)
+                  .filter(Admin.id != a.id, Admin.role == "super", Admin.is_active.is_(True))
+                  .count())
+        if others == 0:
+            raise AppError(400, "不能停用或降级最后一个有效超级管理员")
     if body.password:
         a.password_hash = hash_password(body.password)
         a.failed_attempts, a.locked_until = 0, None
+        a.session_version += 1  # 改密即撤销该账号全部旧会话（含已泄露的 cookie）
     if body.role:
         a.role = body.role
     if body.name is not None:

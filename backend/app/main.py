@@ -2,7 +2,6 @@ import logging
 import os
 
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -17,8 +16,8 @@ logging.basicConfig(  # 应用日志进 uvicorn 输出（/tmp/prod-uvicorn.log�
 
 def create_app() -> FastAPI:
     app = FastAPI(title="食材预订")
-    app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True,
-                       allow_methods=["*"], allow_headers=["*"])
+    # 不加 CORS：前端由本服务同源托管（SPA 静态 + API），开发走 vite 代理也是同源。
+    # 通配 origins + credentials 会放行任意站点带 cookie 跨域请求，宁可不要。
 
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError):
@@ -45,9 +44,6 @@ def create_app() -> FastAPI:
 
     from app.routers.admin_orders import router as admin_orders_router
     app.include_router(admin_orders_router)
-
-    from app.routers.admin_verify import router as admin_verify_router
-    app.include_router(admin_verify_router)
 
     from app.routers.admin_stats import router as admin_stats_router
     app.include_router(admin_stats_router)
@@ -89,6 +85,7 @@ def create_app() -> FastAPI:
         Base.metadata.create_all(bind=engine)
         _ensure_product_images_column()
         _ensure_order_pickup_date_column()
+        _ensure_admin_session_version_column()
         with SessionLocal() as s:
             ensure_initial_admin(s)
 
@@ -129,6 +126,16 @@ def create_app() -> FastAPI:
                 s.execute(text("UPDATE orders SET pickup_date = :d WHERE id = :id"),
                           {"d": pickup_date_for(placed), "id": oid})
             s.commit()
+
+    def _ensure_admin_session_version_column():
+        """已有库升级：admins 补 session_version 列（改密撤销旧会话用，幂等）。"""
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            try:
+                conn.execute(text(
+                    "ALTER TABLE admins ADD COLUMN session_version INT NOT NULL DEFAULT 0"))
+            except Exception:  # 列已存在
+                pass
 
     return app
 

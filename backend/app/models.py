@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Tex
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.utils.times import now_cst
 
 
 class User(Base):
@@ -12,7 +13,7 @@ class User(Base):
     empid: Mapped[str] = mapped_column(String(32), unique=True, index=True)
     name: Mapped[str | None] = mapped_column(String(64))
     phone: Mapped[str | None] = mapped_column(String(20))
-    first_login_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    first_login_at: Mapped[datetime] = mapped_column(DateTime, default=now_cst)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
@@ -25,6 +26,7 @@ class Admin(Base):
     name: Mapped[str] = mapped_column(String(64), default="")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     failed_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    session_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     locked_until: Mapped[datetime | None] = mapped_column(DateTime)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
 
@@ -53,8 +55,8 @@ class Product(Base):
     status: Mapped[str] = mapped_column(String(8), default="on")  # on/off
     stock: Mapped[int | None] = mapped_column(Integer)            # NULL=无限
     sort: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=datetime.now)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_cst)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=now_cst)
     category = relationship("Category")
 
 
@@ -69,7 +71,7 @@ class Order(Base):
     pickup_code: Mapped[str] = mapped_column(String(8), unique=True, index=True)
     # 取货批次（16 点截单规则），备货单/小票按它圈定
     pickup_date: Mapped[date | None] = mapped_column(Date, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_cst)
     ready_at: Mapped[datetime | None] = mapped_column(DateTime)
     done_at: Mapped[datetime | None] = mapped_column(DateTime)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime)
@@ -100,7 +102,7 @@ class AdminLog(Base):
     action: Mapped[str] = mapped_column(String(32), index=True)
     target: Mapped[str] = mapped_column(String(64), default="")
     detail: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_cst, index=True)
 
 
 class Setting(Base):
