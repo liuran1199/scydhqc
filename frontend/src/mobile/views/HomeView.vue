@@ -1,17 +1,22 @@
 <template>
   <div class="home">
     <div class="topbar">
-      <div class="px-4 pt-4 flex items-baseline justify-between">
-        <h1 class="text-[19px] font-bold tracking-wide">食材服务点</h1>
-        <span v-if="user?.name" class="text-xs text-[var(--sc-sub)]">{{ user.name }}，你好</span>
+      <div class="px-4 pt-4 flex items-center gap-2">
+        <!-- 盾徽意象的线条图标：警校气质，克制不抢戏 -->
+        <svg class="shield" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3l7 2.6v5.1c0 4.6-2.9 8-7 9.6-4.1-1.6-7-5-7-9.6V5.6L12 3Z" />
+          <path d="M12 7.2l.95 1.92 2.1.31-1.52 1.48.36 2.09L12 12.03l-1.89.99.36-2.09-1.52-1.48 2.1-.31L12 7.2Z" />
+        </svg>
+        <h1 class="text-[19px] font-bold tracking-wide text-white">食材服务点</h1>
+        <span v-if="user?.name" class="ml-auto text-xs text-white/70">{{ user.name }}，你好</span>
       </div>
+      <div class="px-4 pt-1 slogan">放心食材 · 惠警便民</div>
       <!-- 功能条：老师进页第一眼最关心的"现在下单什么时候拿" -->
-      <div class="px-4 pt-2 pb-3">
+      <div class="px-4 pt-3 pb-4">
         <span class="info-strip">
           <span class="dot" aria-hidden="true"></span>
-          今天 {{ cutoffHour }}:00 前下单，一般次日可取
-          <span class="mx-1 opacity-40">·</span>
-          休息日顺延，备好后自提
+          当日 {{ cutoffHour }}:00 前下单，下个工作日可取
         </span>
       </div>
     </div>
@@ -182,15 +187,32 @@ onMounted(async () => {
 .home {
   padding-bottom: 16px;
 }
-/* 顶部功能条：信息优先，绿色呼吸点提示"正在营业的节奏"，不做装饰横幅 */
+/* 顶部藏蓝色块 + 警徽金点缀：警校身份一眼可辨，纯色不渐变 */
+.topbar {
+  background: var(--sc-primary);
+  border-radius: 0 0 16px 16px;
+  border-bottom: 2px solid var(--sc-gold);
+}
+.shield {
+  width: 22px;
+  height: 22px;
+  color: var(--sc-gold-bright);
+  flex-shrink: 0;
+}
+.slogan {
+  color: var(--sc-gold-bright);
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+/* 功能条：藏蓝上的半透明白胶囊，金色呼吸点 */
 .info-strip {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   padding: 5px 12px;
   border-radius: 999px;
-  background: var(--sc-primary-soft);
-  color: var(--sc-primary-deep);
+  background: rgb(255 255 255 / 14%);
+  color: rgb(255 255 255 / 92%);
   font-size: 12px;
   line-height: 1.4;
 }
@@ -199,7 +221,7 @@ onMounted(async () => {
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: var(--sc-primary);
+  background: var(--sc-gold-bright);
   flex-shrink: 0;
 }
 .dot::after {
@@ -207,7 +229,7 @@ onMounted(async () => {
   position: absolute;
   inset: -3px;
   border-radius: 999px;
-  background: var(--sc-primary);
+  background: var(--sc-gold-bright);
   opacity: 0;
   animation: dot-pulse 2.6s ease-out infinite;
 }

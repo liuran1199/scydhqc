@@ -6,7 +6,7 @@
       <div v-if="o.status === 'READY' || o.status === 'PENDING'">
         <PickupCode :code="o.pickup_code" />
         <p v-if="o.status === 'PENDING'" class="mt-1 text-center text-xs text-[var(--sc-sub)]">
-          正在备货，备货完成后即可到店取货（遇休息日顺延）
+          正在备货，备货完成后即可到店取货
         </p>
         <p v-else class="mt-1 text-center text-xs text-[var(--sc-sub)]">
           货已备好，请到服务点出示取货码自提

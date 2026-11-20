@@ -35,7 +35,7 @@
       </div>
 
       <p class="mt-3 px-2 text-xs leading-5 text-[var(--sc-sub)]">
-        每天 {{ cutoffHour }} 点前下单，一般次日可取；遇休息日顺延，以订单状态为准。
+        当日 {{ cutoffHour }} 点前下单，下个工作日可取。
         备货完成后到服务点出示取货码自提，现场支付。
       </p>
 
