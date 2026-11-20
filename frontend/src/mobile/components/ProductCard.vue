@@ -1,11 +1,10 @@
 <template>
   <div class="product-card" @click="$emit('open', p)">
-    <div v-if="p.image" class="thumb">
-      <img :src="p.image" loading="lazy" alt="" @error="imgFail = true" />
-      <div v-if="imgFail" class="thumb-fallback">{{ p.name.slice(0, 1) }}</div>
-    </div>
-    <div v-else class="thumb">
-      <div class="thumb-fallback">{{ p.name.slice(0, 1) }}</div>
+    <div class="thumb">
+      <template v-if="p.image && !imgFail">
+        <img :src="p.image" loading="lazy" alt="" @error="imgFail = true" />
+      </template>
+      <CategoryGlyph v-else :name="cat" />
     </div>
     <div class="flex-1 min-w-0">
       <router-link :to="'/m/product/' + p.id" class="block">
@@ -15,10 +14,11 @@
         </div>
       </router-link>
       <div class="mt-1.5 flex items-end justify-between">
-        <div class="leading-none">
-          <span class="price">￥{{ fmtMoney(p.price_sale) }}</span>
+        <div class="leading-none flex items-baseline min-w-0">
+          <span class="price-cny">￥</span><span class="price-num">{{ fmtMoney(p.price_sale) }}</span>
+          <span v-if="hasDiscount" class="off-tag">优惠</span>
           <span
-            v-if="p.price_original > p.price_sale"
+            v-if="hasDiscount"
             class="ml-1.5 text-xs text-[var(--sc-sub)] line-through"
           >
             ￥{{ fmtMoney(p.price_original) }}
@@ -55,28 +55,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { fmtMoney } from "../../shared/format";
+import CategoryGlyph from "./CategoryGlyph.vue";
 
-defineProps<{
-  p: {
-    id: number;
-    name: string;
-    spec: string;
-    unit: string;
-    price_sale: number;
-    price_original: number;
-    image?: string | null;
-  };
+/** 卡片需要的商品字段（HomeView 的 ProductRow 结构兼容，emit 按此类型收窄） */
+export interface ProductCardData {
+  id: number;
+  name: string;
+  spec: string;
+  unit: string;
+  price_sale: number;
+  price_original: number;
+  image?: string | null;
+}
+
+const props = defineProps<{
+  p: ProductCardData;
   /** 该商品已在购物车的数量（0 时只显示 + 号） */
   qty: number;
+  /** 分类名：无图占位块按分类显示图标，缺省为购物篮 */
+  cat?: string;
 }>();
 defineEmits<{
-  change: [p: { id: number }, qty: number];
-  open: [p: { id: number }];
+  change: [p: ProductCardData, qty: number];
+  open: [p: ProductCardData];
 }>();
 
 const imgFail = ref(false);
+const hasDiscount = computed(() => props.p.price_original > props.p.price_sale);
 </script>
 
 <style scoped>
@@ -101,21 +108,27 @@ const imgFail = ref(false);
   height: 100%;
   object-fit: cover;
 }
-.thumb-fallback {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--sc-primary-soft);
-  color: var(--sc-primary);
-  font-size: 26px;
+/* 价格层级：货币符号小、金额大，数字等宽对齐 */
+.price-cny {
+  font-size: 11px;
   font-weight: 600;
-}
-.price {
   color: var(--sc-price);
+}
+.price-num {
+  font-size: 18px;
   font-weight: 700;
-  font-size: 17px;
+  color: var(--sc-price);
+  font-variant-numeric: tabular-nums;
+}
+.off-tag {
+  margin-left: 5px;
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: #fdeee7;
+  color: var(--sc-price);
 }
 .qty-zone {
   display: flex;
