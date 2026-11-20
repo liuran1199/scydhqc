@@ -35,8 +35,7 @@
       </div>
 
       <p class="mt-3 px-2 text-xs leading-5 text-[var(--sc-sub)]">
-        每天 {{ cutoffHour }} 点截单：本单预计
-        <b class="text-[var(--sc-ink)]">{{ pickupLabel }}</b> 取货（以提交后订单显示为准）。
+        每天 {{ cutoffHour }} 点前下单，一般次日可取；遇休息日顺延，以订单状态为准。
         备货完成后到服务点出示取货码自提，现场支付。
       </p>
 
@@ -67,14 +66,13 @@ import { useRouter } from "vue-router";
 import { showConfirmDialog, showFailToast, showToast, showSuccessToast } from "vant";
 import { api } from "../../api/http";
 import { useCartStore } from "../../stores/cart";
-import { fmtMoney, fmtPickupDate, pickupDateFor } from "../../shared/format";
+import { fmtMoney } from "../../shared/format";
 
 const cart = useCartStore();
 const router = useRouter();
 const remark = ref("");
 const submitting = ref(false);
-// 取货信息以服务端为准（Asia/Shanghai 业务时区算批次），本机时间只是兜底
-const pickupLabel = ref(fmtPickupDate(pickupDateFor(new Date())));
+// 截单小时以服务端为准；不再承诺具体取货日期，休息日顺延由取货须知说明
 const cutoffHour = ref(16);
 const notice = ref("");
 
@@ -85,11 +83,10 @@ onMounted(async () => {
     router.replace("/m/cart");
   }
   try {
-    const info = await api<{ pickup_date: string; cutoff_hour: number }>("/api/pickup-info");
-    pickupLabel.value = fmtPickupDate(info.pickup_date);
+    const info = await api<{ cutoff_hour: number }>("/api/pickup-info");
     cutoffHour.value = info.cutoff_hour;
   } catch {
-    /* 服务端取不到就用本机时间估的批次，下单后仍以订单为准 */
+    /* 取不到就用默认 16 点文案 */
   }
   try {
     const n = await api<{ content: string }>("/api/notice");
@@ -135,7 +132,7 @@ async function submit() {
       }),
     });
     cart.removeSelected(); // 只清本次结算的，未勾选的留在车里
-    showSuccessToast(`下单成功，${fmtPickupDate(order.pickup_date)}凭取货码自提`);
+    showSuccessToast("下单成功，备货完成后凭取货码自提");
     router.replace(`/m/order/${order.id}`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "下单失败";

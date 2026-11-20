@@ -4,8 +4,7 @@
     <div class="toolbar no-print">
       <el-button @click="router.back()">返回</el-button>
       <span class="tb-title">
-        备货清单<template v-if="batch">（{{ fmtPickupDate(batch) }}取货批次）</template>
-        · {{ d.total_orders }} 单 · {{ d.total_kinds }} 个品种
+        备货清单（待备队列）· {{ d.total_orders }} 单 · {{ d.total_kinds }} 个品种
       </span>
       <el-button type="primary" :disabled="!d.total_orders" @click="print">打印</el-button>
     </div>
@@ -14,10 +13,10 @@
       <header class="head">
         <h1>备货清单</h1>
         <p class="sub">
-          <b>{{ fmtPickupDate(batch) }}</b> 取货批次 · 共 {{ d.total_orders }} 单
+          待备队列 · 共 {{ d.total_orders }} 单
           · {{ d.total_kinds }} 个品种 · 合计 {{ d.total_qty }} 件
         </p>
-        <p class="meta">生成于 {{ generatedAt }} · 16:00 截单后本批不再增加订单</p>
+        <p class="meta">截至 {{ cutoffLabel }} 前下单 · 生成于 {{ generatedAt }} · 之后下单的归下一轮备货</p>
       </header>
 
       <!-- 第一部分：按商品汇总（拣货主表，备妥列供打勾） -->
@@ -84,16 +83,15 @@
         </table>
       </section>
     </div>
-    <el-empty v-else-if="!loading" description="该批次没有待备货的订单" :image-size="80" />
+    <el-empty v-else-if="!loading" description="当前没有待备的订单" :image-size="80" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { api } from "../../api/http";
-import { fmtPickupDate } from "../../shared/format";
 
 interface SummaryRow {
   p_name: string;
@@ -109,7 +107,7 @@ interface DetailOrder {
   user?: { empid: string; name: string | null };
 }
 interface PickingList {
-  batch: string;
+  cutoff: string;
   total_orders: number;
   total_kinds: number;
   total_qty: number;
@@ -117,24 +115,21 @@ interface PickingList {
   orders: DetailOrder[];
 }
 
-const route = useRoute();
 const router = useRouter();
 const loading = ref(true);
-const batch = ref("");
+const cutoffLabel = ref("");
 const d = ref<PickingList>({
-  batch: "", total_orders: 0, total_kinds: 0, total_qty: 0, summary: [], orders: [],
+  cutoff: "", total_orders: 0, total_kinds: 0, total_qty: 0, summary: [], orders: [],
 });
 const generatedAt = new Date()
   .toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
   .replace(/\//g, "-");
 
 onMounted(async () => {
-  const params = new URLSearchParams();
-  if (typeof route.query.pickup_date === "string") params.set("pickup_date", route.query.pickup_date);
   try {
-    const r = await api<PickingList>(`/api/admin/orders/picking-list?${params}`);
+    const r = await api<PickingList>("/api/admin/orders/picking-list");
     d.value = r;
-    batch.value = r.batch;
+    cutoffLabel.value = (r.cutoff || "").slice(5, 16).replace("T", " ");
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : "加载失败");
   } finally {

@@ -5,11 +5,11 @@
     <div class="p-3 grid gap-3">
       <div v-if="o.status === 'READY' || o.status === 'PENDING'">
         <PickupCode :code="o.pickup_code" />
-        <p v-if="o.pickup_date" class="mt-2 text-center text-sm">
-          取货日期：<b>{{ fmtPickupDate(o.pickup_date) }}</b>
-        </p>
         <p v-if="o.status === 'PENDING'" class="mt-1 text-center text-xs text-[var(--sc-sub)]">
-          正在备货，备货完成后即可到店取货
+          正在备货，备货完成后即可到店取货（遇休息日顺延）
+        </p>
+        <p v-else class="mt-1 text-center text-xs text-[var(--sc-sub)]">
+          货已备好，请到服务点出示取货码自提
         </p>
       </div>
 
@@ -63,7 +63,7 @@ import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { showConfirmDialog, showFailToast, showSuccessToast } from "vant";
 import { api } from "../../api/http";
-import { fmtMoney, fmtPickupDate } from "../../shared/format";
+import { fmtMoney } from "../../shared/format";
 import PickupCode from "../components/PickupCode.vue";
 
 interface OrderDetail {

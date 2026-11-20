@@ -4,9 +4,7 @@
     <div class="toolbar no-print">
       <el-button @click="router.back()">返回</el-button>
       <span class="tb-title">
-        订单小票
-        <template v-if="batchLabel">（{{ batchLabel }}取货批次）</template>
-        · 共 {{ orders.length }} 张
+        订单小票<template v-if="!hasIds">（待备队列）</template> · 共 {{ orders.length }} 张
       </span>
       <el-button type="primary" :disabled="!orders.length" @click="print">打印</el-button>
     </div>
@@ -14,7 +12,7 @@
     <div v-if="orders.length" class="slips">
       <div v-for="o in orders" :key="o.id" class="slip">
         <div class="slip-head">
-          <span class="s-date">{{ fmtPickupDate(o.pickup_date) }} 取货</span>
+          <span class="s-date">{{ (o.created_at || "").slice(5, 10) }} 下单</span>
           <span class="s-no">{{ o.order_no.slice(-6) }}</span>
         </div>
         <div class="s-code">{{ o.pickup_code }}</div>
@@ -29,7 +27,7 @@
         <div v-if="o.remark" class="s-remark">备注：{{ o.remark }}</div>
       </div>
     </div>
-    <el-empty v-else-if="!loading" description="该批次没有待打印的订单" :image-size="80" />
+    <el-empty v-else-if="!loading" description="当前没有待打印的订单" :image-size="80" />
   </div>
 </template>
 
@@ -38,7 +36,7 @@ import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { api } from "../../api/http";
-import { fmtMoney, fmtPickupDate } from "../../shared/format";
+import { fmtMoney } from "../../shared/format";
 
 interface PrintOrder {
   id: number;
@@ -47,7 +45,7 @@ interface PrintOrder {
   total: number;
   remark: string;
   pickup_code: string;
-  pickup_date: string | null;
+  created_at: string | null;
   items: { p_name: string; p_spec: string; p_unit: string; qty: number }[];
   user?: { empid: string; name: string | null };
 }
@@ -56,18 +54,14 @@ const route = useRoute();
 const router = useRouter();
 const orders = ref<PrintOrder[]>([]);
 const loading = ref(true);
-const batchLabel = ref("");
+const hasIds = typeof route.query.ids === "string" && route.query.ids.length > 0;
 
 onMounted(async () => {
   const params = new URLSearchParams();
-  if (typeof route.query.ids === "string") params.set("ids", route.query.ids);
-  else if (typeof route.query.pickup_date === "string")
-    params.set("pickup_date", route.query.pickup_date);
+  if (hasIds) params.set("ids", route.query.ids as string);
   try {
     const d = await api<{ items: PrintOrder[] }>(`/api/admin/orders/receipts?${params}`);
     orders.value = d.items;
-    if (typeof route.query.pickup_date === "string")
-      batchLabel.value = fmtPickupDate(route.query.pickup_date);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : "加载失败");
   } finally {

@@ -24,22 +24,16 @@
         @clear="load(1)"
       />
       <el-button @click="load(1)">查询</el-button>
-      <el-tag
-        v-if="pickupFilter"
-        closable
-        type="primary"
-        effect="light"
-        @close="clearBatchFilter"
-      >
-        {{ fmtPickupDate(pickupFilter) }}取货批次
+      <el-tag v-if="queueOn" closable type="primary" effect="light" @close="toggleQueue">
+        待备队列
       </el-tag>
       <div class="spacer" />
       <el-button :icon="Document" @click="printPickingList">
-        今日备货单{{ batchCount ? `（${batchCount}）` : "" }}
+        备货单{{ queueCount ? `（${queueCount}）` : "" }}
       </el-button>
-      <el-button :icon="Printer" @click="viewBatch">{{ batchFilterActive ? "退出本批" : "查看本批" }}</el-button>
+      <el-button :icon="Printer" @click="toggleQueue">{{ queueOn ? "退出待备" : "看待备" }}</el-button>
       <el-button :icon="Printer" @click="printReceipts">
-        打印小票{{ sel.length ? `（选中 ${sel.length}）` : "（本批）" }}
+        打印小票{{ sel.length ? `（选中 ${sel.length}）` : "（待备）" }}
       </el-button>
       <el-button
         type="primary"
@@ -89,13 +83,6 @@
             {{ (row.created_at || "").slice(0, 16).replace("T", " ") }}
           </template>
         </el-table-column>
-        <el-table-column label="取货日期" width="140" class-name="nw">
-          <template #default="{ row }">
-            <span :class="{ 'pu-soon': row.pickup_date === batchDate }">
-              {{ row.pickup_date ? fmtPickupDate(row.pickup_date) : "—" }}
-            </span>
-          </template>
-        </el-table-column>
         <el-table-column label="操作" width="80" fixed="right">
           <template #default="{ row }">
             <el-button
@@ -125,11 +112,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Document, Printer } from "@element-plus/icons-vue";
 import { api } from "../../api/http";
-import { fmtMoney, fmtPickupDate } from "../../shared/format";
+import { fmtMoney } from "../../shared/format";
 
 interface OrderItem {
   p_name: string;
@@ -166,44 +153,33 @@ const page = ref(1);
 const loading = ref(false);
 const readying = ref(false);
 
-// ── 备货批次：今晚备「明天取货」的单（16 点截单）──
-const tomorrow = new Date();
-tomorrow.setDate(tomorrow.getDate() + 1);
-const batchDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
-const batchCount = ref(0);
-const pickupFilter = ref<string | null>(null);
-const batchFilterActive = computed(() => pickupFilter.value === batchDate);
+// ── 待备队列：PENDING 且 16 点截单前下的单（休息日积压自动并入，不依赖取货日期）──
+const queueOn = ref(false);
+const queueCount = ref(0);
 
 function printPickingList() {
-  window.open(`/admin/print/picking-list?pickup_date=${batchDate}`, "_blank");
+  window.open("/admin/print/picking-list", "_blank");
 }
 
-async function loadBatchCount() {
+async function loadQueueCount() {
   try {
-    // 与备货单/小票同口径：只数 PENDING/READY（已完成的不算要备的货）
-    const d = await api<{ total: number }>(
-      `/api/admin/orders?pickup_date=${batchDate}&status=PENDING,READY&page=1`,
-    );
-    batchCount.value = d.total;
+    // 与备货单/小票同口径：PENDING 且下单 ≤ 截点
+    const d = await api<{ total: number }>("/api/admin/orders?queue=1&page=1");
+    queueCount.value = d.total;
   } catch {
     /* 角标失败不影响主功能 */
   }
 }
 
-function viewBatch() {
-  pickupFilter.value = batchFilterActive.value ? null : batchDate;
-  load(1);
-}
-
-function clearBatchFilter() {
-  pickupFilter.value = null;
+function toggleQueue() {
+  queueOn.value = !queueOn.value;
   load(1);
 }
 
 function printReceipts() {
   const query = sel.value.length
     ? `ids=${sel.value.map((o) => o.id).join(",")}`
-    : `pickup_date=${batchDate}`;
+    : "";
   window.open(`/admin/print/receipts?${query}`, "_blank");
 }
 
@@ -214,9 +190,9 @@ function selectable(row: AdminOrder) {
 async function load(p = 1) {
   page.value = p;
   const params = new URLSearchParams({ page: String(p) });
+  if (queueOn.value) params.set("queue", "1");
   if (status.value) params.set("status", status.value);
   if (q.value) params.set("q", q.value);
-  if (pickupFilter.value) params.set("pickup_date", pickupFilter.value);
   if (range.value?.[0]) {
     params.set("date_from", range.value[0]);
     params.set("date_to", range.value[1]);
@@ -257,7 +233,7 @@ async function batchReady() {
       ElMessage.success(`备货完成 ${r.updated} 单`);
     }
     load(page.value);
-    loadBatchCount();
+    loadQueueCount();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : "操作失败");
   } finally {
@@ -290,7 +266,7 @@ async function cancel(row: AdminOrder) {
     });
     ElMessage.success("已取消");
     load(page.value);
-    loadBatchCount();
+    loadQueueCount();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : "取消失败");
   }
@@ -298,7 +274,7 @@ async function cancel(row: AdminOrder) {
 
 onMounted(() => {
   load(1);
-  loadBatchCount();
+  loadQueueCount();
 });
 </script>
 
@@ -330,10 +306,6 @@ onMounted(() => {
 }
 .amount {
   font-variant-numeric: tabular-nums;
-}
-.pu-soon {
-  color: var(--el-color-primary);
-  font-weight: 600;
 }
 /* 关键列（订单号/订货人/时间/日期）不换行，宽度已按内容留足 */
 :deep(.el-table .nw .cell) {

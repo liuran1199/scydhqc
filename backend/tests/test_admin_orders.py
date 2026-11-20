@@ -107,8 +107,7 @@ def test_invalid_date_params_return_400(client, db):
     setup_(client, db, n=1)
     assert client.get("/api/admin/orders?pickup_date=not-a-date").status_code == 400
     assert client.get("/api/admin/orders?date_from=xx").status_code == 400
-    assert client.get("/api/admin/orders/receipts?pickup_date=2026-13-99").status_code == 400
-    assert client.get("/api/admin/orders/picking-list?pickup_date=oops").status_code == 400
+    assert client.get("/api/admin/orders?date_to=2026-13-99").status_code == 400
 
 
 def test_receipts_rejects_over_limit(client, db):

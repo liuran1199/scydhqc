@@ -10,8 +10,8 @@ from app.deps import get_current_admin
 from app.exceptions import AppError
 from app.models import Admin, AdminLog, Order, User
 from app.serializers import order_to_dict
-from app.services.orders import PICKUP_CUTOFF_HOUR, cancel_order, complete_order, mark_ready
-from app.utils.times import now_cst
+from app.services.orders import (PICKUP_CUTOFF_HOUR, cancel_order, complete_order,
+                                 mark_ready, prep_cutoff)
 
 router = APIRouter(prefix="/api/admin/orders", tags=["admin-orders"],
                    dependencies=[Depends(get_current_admin)])
@@ -37,11 +37,14 @@ def parse_datetime(s: str, name: str) -> datetime:
 @router.get("")
 def admin_orders(status: str | None = None,
                  date_from: str | None = None, date_to: str | None = None,
-                 pickup_date: str | None = None,
+                 pickup_date: str | None = None, queue: int = Query(0, ge=0, le=1),
                  q: str | None = None, page: int = Query(1, ge=1),
                  db: Session = Depends(get_db)):
     query = db.query(Order)
-    if status:  # 支持逗号分隔多状态，如 PENDING,READY（备货批次角标用）
+    if queue:  # 待备队列：PENDING 且下单 ≤ 截点（与备货单/小票同口径）
+        query = query.filter(Order.status == "PENDING",
+                             Order.created_at <= prep_cutoff())
+    elif status:  # 支持逗号分隔多状态，如 PENDING,READY
         query = query.filter(Order.status.in_([s.strip() for s in status.split(",") if s.strip()]))
     if pickup_date:
         query = query.filter(Order.pickup_date == parse_date(pickup_date, "取货日期"))
@@ -125,9 +128,8 @@ def admin_cancel(oid: int, body: CancelIn, db: Session = Depends(get_db),
 
 
 @router.get("/receipts")
-def receipts(ids: str | None = None, pickup_date: str | None = None,
-             db: Session = Depends(get_db)):
-    """打印小票数据：按订单 id 列表，或按取货批次（PENDING/READY）整批出。"""
+def receipts(ids: str | None = None, db: Session = Depends(get_db)):
+    """打印小票数据：按订单 id 列表，或不传参 = 当前待备队列（与备货单同口径）。"""
     query = db.query(Order)
     if ids:
         id_list = [int(x) for x in ids.split(",") if x.strip().isdigit()]
@@ -136,29 +138,29 @@ def receipts(ids: str | None = None, pickup_date: str | None = None,
         if len(id_list) > PRINT_LIMIT:
             raise AppError(400, f"一次最多打印 {PRINT_LIMIT} 单，请分批")
         query = query.filter(Order.id.in_(id_list))
-    elif pickup_date:
-        query = query.filter(Order.pickup_date == parse_date(pickup_date, "取货日期"),
-                             Order.status.in_(["PENDING", "READY"]))
     else:
-        raise AppError(400, "请指定订单 id 或取货日期")
+        query = query.filter(Order.status == "PENDING",
+                             Order.created_at <= prep_cutoff())
     total = query.count()
     if total > PRINT_LIMIT:
-        raise AppError(400, f"该批次 {total} 单超过单次打印上限 {PRINT_LIMIT}，请分批处理")
+        raise AppError(400, f"本批 {total} 单超过单次打印上限 {PRINT_LIMIT}，请分批处理")
     orders = query.order_by(Order.id).limit(PRINT_LIMIT).all()
     return {"items": [order_to_dict(o, include_user=True) for o in orders]}
 
 
 @router.get("/picking-list")
-def picking_list(pickup_date: str | None = None,
-                 db: Session = Depends(get_db), admin: Admin = Depends(get_current_admin)):
-    """备货清单（A4 打印页数据）：按商品汇总 + 按订单明细。
-    不传日期默认今晚要备的批次：明天取货的订单（今天截单点后属明后天批次）。"""
-    batch = parse_date(pickup_date, "取货日期") if pickup_date else now_cst().date() + timedelta(days=1)
+def picking_list(db: Session = Depends(get_db), admin: Admin = Depends(get_current_admin)):
+    """备货清单（A4 打印页数据）：当前待备队列，按商品汇总 + 按订单明细。
+
+    队列制：PENDING 且下单时间 ≤ 截点（16 点前=全部未备，16 点后=当日 16 点前）。
+    不依赖取货日期——周末/节假日没人处理就持续积压，开工一打开全在这里。
+    """
+    cutoff = prep_cutoff()
     db.add(AdminLog(admin_id=admin.id, username=admin.username, action="export",
-                    target="picking-list", detail=f"打印备货清单（{batch:%Y-%m-%d} 取货批次）"))
+                    target="picking-list", detail=f"打印备货清单（截至 {cutoff:%m-%d %H:%M} 待备队列）"))
     db.commit()
     orders = (db.query(Order)
-              .filter(Order.status.in_((["PENDING", "READY"])), Order.pickup_date == batch)
+              .filter(Order.status == "PENDING", Order.created_at <= cutoff)
               .order_by(Order.id).all())
     agg: dict[tuple, int] = {}
     for o in orders:
@@ -167,7 +169,7 @@ def picking_list(pickup_date: str | None = None,
             agg[k] = agg.get(k, 0) + it.qty
     summary = [{"p_name": n, "p_spec": s, "p_unit": u, "qty": q}
                for (n, s, u), q in sorted(agg.items())]
-    return {"batch": batch.isoformat(),
+    return {"cutoff": cutoff.isoformat(),
             "cutoff_hour": PICKUP_CUTOFF_HOUR,
             "total_orders": len(orders),
             "total_kinds": len(summary),

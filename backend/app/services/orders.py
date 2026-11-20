@@ -14,9 +14,25 @@ PICKUP_CUTOFF_HOUR = 16
 
 
 def pickup_date_for(placed_at: datetime) -> date:
-    """下单时间 → 取货日期（16 点截单规则，边界 16:00 整属后一批）。"""
+    """下单时间 → 取货日期（16 点截单规则，边界 16:00 整属后一批）。
+
+    仅作库内参考字段：备货/取货以订单状态流转驱动，不以此日期做批次承诺，
+    休息日（周末/节假日）由取货须知人话说明，系统不做日历配置。
+    """
     cutoff = placed_at.replace(hour=PICKUP_CUTOFF_HOUR, minute=0, second=0, microsecond=0)
     return (placed_at + timedelta(days=1 if placed_at < cutoff else 2)).date()
+
+
+def prep_cutoff(now: datetime | None = None) -> datetime:
+    """备货队列截点：下单时间 ≤ 截点且未备货的，就是当前该备的。
+
+    16 点前 = 现在（全部待备单都算，当场新下的也进来）；
+    16 点后 = 今天 16:00（截单后的新单留给下一轮）。
+    队口含边界：恰好在 16:00:00 整下的单仍属当轮。
+    """
+    n = now or now_cst()
+    today_cutoff = n.replace(hour=PICKUP_CUTOFF_HOUR, minute=0, second=0, microsecond=0)
+    return min(n, today_cutoff)
 
 
 def create_order(db: Session, user: User, items: list[dict], remark: str = "") -> Order:
